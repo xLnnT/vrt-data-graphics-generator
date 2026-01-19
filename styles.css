@@ -416,6 +416,13 @@ body {
     font-size: 15px;
     font-family: var(--font-family);
     text-align: center;
+    -moz-appearance: textfield;
+}
+
+.number-input::-webkit-outer-spin-button,
+.number-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 .number-input:focus {
