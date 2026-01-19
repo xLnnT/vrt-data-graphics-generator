@@ -44,7 +44,7 @@ const state = {
     scaleFactor: 1,
     isPlaying: false,
     currentFrame: 0,
-    totalFrames: 1200,
+    totalDuration: 20, // Total duration in seconds
     animationId: null,
     highlightedBars: new Set([5]),
     logoImages: {},
@@ -649,19 +649,42 @@ function handleFileUpload(file) {
         // Handle video files
         const video = document.createElement('video');
         video.src = URL.createObjectURL(file);
-        video.autoplay = true;
-        video.loop = true;
+        video.autoplay = false;
+        video.loop = false;
         video.muted = true;
         video.playsInline = true;
+
+        // Update total duration when video metadata is loaded
+        video.addEventListener('loadedmetadata', () => {
+            if (video.duration && isFinite(video.duration)) {
+                state.totalDuration = video.duration;
+                state.currentFrame = 0;
+                updateTotalTimeDisplay();
+                updateTimelineDisplay();
+                animateChart();
+            }
+        });
+
         elements.previewBackground.appendChild(video);
     } else {
-        // Handle image files
+        // Handle image files - reset to default duration
+        state.totalDuration = 20;
+        state.currentFrame = 0;
+        updateTotalTimeDisplay();
+        updateTimelineDisplay();
+
         const reader = new FileReader();
         reader.onload = e => {
             elements.previewBackground.style.backgroundImage = `url(${e.target.result})`;
         };
         reader.readAsDataURL(file);
     }
+}
+
+function updateTotalTimeDisplay() {
+    const minutes = Math.floor(state.totalDuration / 60);
+    const seconds = Math.floor(state.totalDuration % 60);
+    elements.totalTime.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
 // ============================================
@@ -752,31 +775,70 @@ function drawEasingCurve() {
 function togglePlayback() {
     state.isPlaying = !state.isPlaying;
 
+    const bgVideo = elements.previewBackground.querySelector('video');
+
     if (state.isPlaying) {
         elements.playBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+
+        // Sync and play background video
+        if (bgVideo) {
+            const totalFrames = getTotalFrames();
+            const currentTime = (state.currentFrame / totalFrames) * state.totalDuration;
+            bgVideo.currentTime = currentTime;
+            bgVideo.play();
+        }
+
         animate();
     } else {
         elements.playBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
         cancelAnimationFrame(state.animationId);
+
+        // Pause background video
+        if (bgVideo) {
+            bgVideo.pause();
+        }
     }
 }
 
 function animate() {
     if (!state.isPlaying) return;
 
-    state.currentFrame = (state.currentFrame + 1) % state.totalFrames;
+    const totalFrames = getTotalFrames();
+    const bgVideo = elements.previewBackground.querySelector('video');
+
+    // If background video exists, sync timeline to video time for accurate playback
+    if (bgVideo && !bgVideo.paused) {
+        const videoTime = bgVideo.currentTime;
+        state.currentFrame = Math.floor((videoTime / state.totalDuration) * totalFrames);
+
+        // Check if video ended
+        if (bgVideo.ended || videoTime >= state.totalDuration) {
+            state.currentFrame = 0;
+            bgVideo.currentTime = 0;
+            bgVideo.play();
+        }
+    } else {
+        state.currentFrame = (state.currentFrame + 1) % totalFrames;
+    }
+
     updateTimelineDisplay();
     animateChart();
 
     state.animationId = requestAnimationFrame(animate);
 }
 
+function getTotalFrames() {
+    // 60fps for preview animation
+    return Math.floor(state.totalDuration * 60);
+}
+
 function updateTimelineDisplay() {
-    const percent = (state.currentFrame / state.totalFrames) * 100;
+    const totalFrames = getTotalFrames();
+    const percent = (state.currentFrame / totalFrames) * 100;
     elements.timelineProgress.style.width = `${percent}%`;
     elements.timelineThumb.style.left = `${percent}%`;
 
-    const currentSeconds = (state.currentFrame / state.totalFrames) * 20;
+    const currentSeconds = (state.currentFrame / totalFrames) * state.totalDuration;
     const minutes = Math.floor(currentSeconds / 60);
     const seconds = Math.floor(currentSeconds % 60);
     elements.currentTime.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
@@ -785,9 +847,10 @@ function updateTimelineDisplay() {
 function animateChart() {
     if (!state.chart) return;
 
-    const graphInTime = parseInt(elements.graphIn.value) || 5;
-    const graphOutTime = parseInt(elements.graphOut.value) || 15;
-    const currentTime = (state.currentFrame / state.totalFrames) * 20;
+    const totalFrames = getTotalFrames();
+    const graphInTime = parseInt(elements.graphIn.value) || 1;
+    const graphOutTime = parseInt(elements.graphOut.value) || 10;
+    const currentTime = (state.currentFrame / totalFrames) * state.totalDuration;
 
     let progress = 0;
     if (currentTime < graphInTime) {
@@ -795,7 +858,7 @@ function animateChart() {
     } else if (currentTime < graphOutTime) {
         progress = 1;
     } else {
-        progress = 1 - ((currentTime - graphOutTime) / (20 - graphOutTime));
+        progress = 1 - ((currentTime - graphOutTime) / (state.totalDuration - graphOutTime));
     }
 
     progress = Math.max(0, Math.min(1, progress));
@@ -963,8 +1026,8 @@ async function exportVideo(format) {
 
     try {
         const fps = 25;
-        const totalSeconds = 20;
-        const totalFrames = fps * totalSeconds;
+        const totalSeconds = state.totalDuration;
+        const totalFrames = Math.floor(fps * totalSeconds);
 
         showExportProgress('Frames opnemen...', 0);
 
@@ -1071,7 +1134,7 @@ async function exportVideo(format) {
                 '-b:a', '256k',
                 '-ar', '48000',
                 '-ac', '2',
-                '-t', '20',
+                '-t', String(totalSeconds),
                 '-y',
                 'output.mp4'
             ];
@@ -1107,7 +1170,7 @@ async function exportVideo(format) {
                 '-c:a', 'pcm_s16le',
                 '-ar', '48000',
                 '-ac', '2',
-                '-t', '20',
+                '-t', String(totalSeconds),
                 '-y',
                 'output.mov'
             ];
@@ -1165,11 +1228,6 @@ async function handleExport(format) {
     }
 
     // Image formats
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = 1920;
-    canvas.height = 1080;
-
     if (typeof html2canvas === 'undefined') {
         const link = document.createElement('a');
         link.download = 'vrt-chart.png';
@@ -1178,33 +1236,70 @@ async function handleExport(format) {
         return;
     }
 
-    html2canvas(elements.previewArea).then(capturedCanvas => {
-        ctx.drawImage(capturedCanvas, 0, 0, 1920, 1080);
+    if (format === 'jpg') {
+        // JPG: Capture full preview area (background + graph) at 1920x1080
+        html2canvas(elements.previewArea, {
+            scale: 1920 / elements.previewArea.offsetWidth,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#000000'
+        }).then(capturedCanvas => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 1920;
+            canvas.height = 1080;
+            ctx.drawImage(capturedCanvas, 0, 0, 1920, 1080);
 
-        let mimeType, extension;
-        switch (format) {
-            case 'png':
-                mimeType = 'image/png';
-                extension = 'png';
-                break;
-            case 'jpg':
-                mimeType = 'image/jpeg';
-                extension = 'jpg';
-                break;
-            default:
-                return;
-        }
+            const link = document.createElement('a');
+            link.download = 'vrt-graphic.jpg';
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
+            link.click();
+        }).catch(() => {
+            const link = document.createElement('a');
+            link.download = 'vrt-chart.jpg';
+            link.href = elements.chartCanvas.toDataURL('image/jpeg', 0.95);
+            link.click();
+        });
+    } else if (format === 'png') {
+        // PNG: Capture only chart container with transparency at 1920x1080
+        html2canvas(elements.chartContainer, {
+            scale: 1920 / elements.chartContainer.offsetWidth,
+            backgroundColor: null, // Transparent background
+            useCORS: true,
+            allowTaint: true
+        }).then(capturedCanvas => {
+            // Create final canvas at exact 1920x1080 with transparency
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 1920;
+            canvas.height = 1080;
 
-        const link = document.createElement('a');
-        link.download = `vrt-graphic.${extension}`;
-        link.href = canvas.toDataURL(mimeType);
-        link.click();
-    }).catch(() => {
-        const link = document.createElement('a');
-        link.download = 'vrt-chart.png';
-        link.href = elements.chartCanvas.toDataURL('image/png');
-        link.click();
-    });
+            // Keep transparent background
+            ctx.clearRect(0, 0, 1920, 1080);
+
+            // Calculate position to center the chart container
+            const containerRect = elements.chartContainer.getBoundingClientRect();
+            const previewRect = elements.previewArea.getBoundingClientRect();
+            const scaleX = 1920 / previewRect.width;
+            const scaleY = 1080 / previewRect.height;
+            const offsetX = (containerRect.left - previewRect.left) * scaleX;
+            const offsetY = (containerRect.top - previewRect.top) * scaleY;
+            const width = containerRect.width * scaleX;
+            const height = containerRect.height * scaleY;
+
+            ctx.drawImage(capturedCanvas, offsetX, offsetY, width, height);
+
+            const link = document.createElement('a');
+            link.download = 'vrt-graphic.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }).catch(() => {
+            const link = document.createElement('a');
+            link.download = 'vrt-chart.png';
+            link.href = elements.chartCanvas.toDataURL('image/png');
+            link.click();
+        });
+    }
 }
 
 // ============================================
@@ -1289,8 +1384,15 @@ function initEventListeners() {
     timelineTrack.addEventListener('click', e => {
         const rect = timelineTrack.getBoundingClientRect();
         const percent = (e.clientX - rect.left) / rect.width;
-        state.currentFrame = Math.floor(percent * state.totalFrames);
+        state.currentFrame = Math.floor(percent * getTotalFrames());
         updateTimelineDisplay();
+        animateChart();
+
+        // Sync background video position
+        const bgVideo = elements.previewBackground.querySelector('video');
+        if (bgVideo) {
+            bgVideo.currentTime = percent * state.totalDuration;
+        }
     });
 
     // Output buttons
@@ -1339,6 +1441,8 @@ function init() {
     updateChart();
     updateTitles();
     updatePanelWidth();
+    updateTotalTimeDisplay();
+    updateTimelineDisplay();
 }
 
 document.addEventListener('DOMContentLoaded', init);
