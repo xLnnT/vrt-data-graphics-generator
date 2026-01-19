@@ -691,6 +691,8 @@ function updateTotalTimeDisplay() {
 // EASING CANVAS
 // ============================================
 
+let easingDragging = null; // 'cp1' or 'cp2' or null
+
 function initEasingCanvas() {
     const canvas = elements.easingCanvas;
     const ctx = canvas.getContext('2d');
@@ -699,7 +701,88 @@ function initEasingCanvas() {
     canvas.height = canvas.offsetHeight * 2;
     ctx.scale(2, 2);
 
+    // Add mouse/touch interaction
+    canvas.addEventListener('mousedown', handleEasingMouseDown);
+    canvas.addEventListener('mousemove', handleEasingMouseMove);
+    canvas.addEventListener('mouseup', handleEasingMouseUp);
+    canvas.addEventListener('mouseleave', handleEasingMouseUp);
+
+    // Touch support
+    canvas.addEventListener('touchstart', handleEasingTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleEasingTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleEasingMouseUp);
+
     drawEasingCurve();
+}
+
+function getEasingCanvasCoords(e) {
+    const canvas = elements.easingCanvas;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = 1 - (e.clientY - rect.top) / rect.height; // Flip Y axis
+    return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+}
+
+function handleEasingMouseDown(e) {
+    const coords = getEasingCanvasCoords(e);
+    const { cp1x, cp1y, cp2x, cp2y } = state.easingPoints;
+
+    // Check which control point is closest
+    const dist1 = Math.hypot(coords.x - cp1x, coords.y - cp1y);
+    const dist2 = Math.hypot(coords.x - cp2x, coords.y - cp2y);
+
+    const threshold = 0.15; // Click tolerance
+
+    if (dist1 < threshold && dist1 <= dist2) {
+        easingDragging = 'cp1';
+        elements.easingCanvas.style.cursor = 'grabbing';
+    } else if (dist2 < threshold) {
+        easingDragging = 'cp2';
+        elements.easingCanvas.style.cursor = 'grabbing';
+    }
+}
+
+function handleEasingMouseMove(e) {
+    const coords = getEasingCanvasCoords(e);
+
+    if (easingDragging) {
+        if (easingDragging === 'cp1') {
+            state.easingPoints.cp1x = coords.x;
+            state.easingPoints.cp1y = coords.y;
+        } else if (easingDragging === 'cp2') {
+            state.easingPoints.cp2x = coords.x;
+            state.easingPoints.cp2y = coords.y;
+        }
+        drawEasingCurve();
+    } else {
+        // Update cursor based on hover
+        const { cp1x, cp1y, cp2x, cp2y } = state.easingPoints;
+        const dist1 = Math.hypot(coords.x - cp1x, coords.y - cp1y);
+        const dist2 = Math.hypot(coords.x - cp2x, coords.y - cp2y);
+
+        if (dist1 < 0.15 || dist2 < 0.15) {
+            elements.easingCanvas.style.cursor = 'grab';
+        } else {
+            elements.easingCanvas.style.cursor = 'default';
+        }
+    }
+}
+
+function handleEasingMouseUp() {
+    easingDragging = null;
+    elements.easingCanvas.style.cursor = 'default';
+}
+
+function handleEasingTouchStart(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    handleEasingMouseDown({ clientX: touch.clientX, clientY: touch.clientY });
+}
+
+function handleEasingTouchMove(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    handleEasingMouseMove({ clientX: touch.clientX, clientY: touch.clientY });
 }
 
 function drawEasingCurve() {
@@ -711,50 +794,31 @@ function drawEasingCurve() {
 
     ctx.clearRect(0, 0, width, height);
 
-    // Grid
-    ctx.strokeStyle = '#C9C2F833';
+    // 4x4 Grid
+    ctx.strokeStyle = '#C9C2F844';
     ctx.lineWidth = 1;
-    for (let i = 0; i <= 10; i++) {
+    for (let i = 0; i <= 4; i++) {
         ctx.beginPath();
-        ctx.moveTo(i * width / 10, 0);
-        ctx.lineTo(i * width / 10, height);
+        ctx.moveTo(i * width / 4, 0);
+        ctx.lineTo(i * width / 4, height);
         ctx.stroke();
         ctx.beginPath();
-        ctx.moveTo(0, i * height / 10);
-        ctx.lineTo(width, i * height / 10);
+        ctx.moveTo(0, i * height / 4);
+        ctx.lineTo(width, i * height / 4);
         ctx.stroke();
     }
 
-    // Diagonal reference
+    // Diagonal reference (linear easing)
     ctx.strokeStyle = '#C9C2F866';
+    ctx.setLineDash([4, 4]);
     ctx.beginPath();
     ctx.moveTo(0, height);
     ctx.lineTo(width, 0);
     ctx.stroke();
-
-    // Bezier curve
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, height);
-    ctx.bezierCurveTo(
-        cp1x * width, height - cp1y * height,
-        cp2x * width, height - cp2y * height,
-        width, 0
-    );
-    ctx.stroke();
-
-    // Control points
-    ctx.fillStyle = '#5541F0';
-    ctx.beginPath();
-    ctx.arc(cp1x * width, height - cp1y * height, 6, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(cp2x * width, height - cp2y * height, 6, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.setLineDash([]);
 
     // Control point lines
-    ctx.strokeStyle = '#5541F066';
+    ctx.strokeStyle = '#5541F088';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, height);
@@ -765,7 +829,46 @@ function drawEasingCurve() {
     ctx.lineTo(cp2x * width, height - cp2y * height);
     ctx.stroke();
 
-    elements.easingValues.textContent = `${cp1x.toFixed(2)},${cp1y.toFixed(2)},${cp2x.toFixed(2)},${cp2y.toFixed(2)}`;
+    // Bezier curve
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(0, height);
+    ctx.bezierCurveTo(
+        cp1x * width, height - cp1y * height,
+        cp2x * width, height - cp2y * height,
+        width, 0
+    );
+    ctx.stroke();
+
+    // Start and end points
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath();
+    ctx.arc(0, height, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(width, 0, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Control points (draggable)
+    ctx.fillStyle = '#5541F0';
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 2;
+
+    // CP1
+    ctx.beginPath();
+    ctx.arc(cp1x * width, height - cp1y * height, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // CP2
+    ctx.beginPath();
+    ctx.arc(cp2x * width, height - cp2y * height, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Update values display
+    elements.easingValues.textContent = `${cp1x.toFixed(2)}, ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)}, ${cp2y.toFixed(2)}`;
 }
 
 // ============================================
