@@ -235,13 +235,64 @@ function initChart() {
 // Create gradient colors for bars
 function createGradientColors() {
     const labels = getXAxisLabels();
-    const primary = elements.primaryColor.value;
-    const highlight = elements.highlightColor.value;
+    const primary = elements.primaryColor.dataset.color;
+    const highlight = elements.highlightColor.dataset.color;
 
     return labels.map((_, index) => {
         // Highlight specific bar (e.g., 2016 - index 5)
-        if (index === 5) return '#00BEAA';
+        if (index === 5) return highlight;
         return primary;
+    });
+}
+
+// Initialize color selectors
+function initColorSelectors() {
+    const colorSelectors = document.querySelectorAll('.color-selector');
+
+    colorSelectors.forEach(selector => {
+        const indicator = selector.querySelector('.color-indicator');
+        const dropdown = selector.querySelector('.color-dropdown');
+        const options = selector.querySelectorAll('.color-option');
+
+        // Toggle dropdown on click
+        indicator.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Close other dropdowns
+            colorSelectors.forEach(s => {
+                if (s !== selector) s.classList.remove('open');
+            });
+            selector.classList.toggle('open');
+        });
+
+        // Handle color option selection
+        options.forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const color = option.dataset.color;
+                selector.dataset.color = color;
+                indicator.style.backgroundColor = color;
+
+                // Update selected state
+                options.forEach(o => o.classList.remove('selected'));
+                option.classList.add('selected');
+
+                selector.classList.remove('open');
+                updateChart();
+            });
+        });
+
+        // Mark initial selected color
+        const currentColor = selector.dataset.color;
+        options.forEach(option => {
+            if (option.dataset.color === currentColor) {
+                option.classList.add('selected');
+            }
+        });
+    });
+
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', () => {
+        colorSelectors.forEach(s => s.classList.remove('open'));
     });
 }
 
@@ -369,10 +420,8 @@ function initEventListeners() {
     elements.panelWidth.addEventListener('input', updatePanelWidth);
     elements.barWidth.addEventListener('input', updateBarWidth);
 
-    // Colors
-    elements.primaryColor.addEventListener('input', updateChart);
-    elements.secondaryColor.addEventListener('input', updateChart);
-    elements.highlightColor.addEventListener('input', updateChart);
+    // Colors - setup color selectors
+    initColorSelectors();
 
     // Checkboxes
     elements.showText.addEventListener('change', updateTitles);

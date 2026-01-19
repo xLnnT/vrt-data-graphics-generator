@@ -234,7 +234,7 @@ body {
     border: none;
 }
 
-/* Color Picker */
+/* Color Selector */
 .color-row {
     display: flex;
     align-items: center;
@@ -252,24 +252,59 @@ body {
     min-width: 80px;
 }
 
-.color-picker {
+.color-selector {
+    position: relative;
+    cursor: pointer;
+}
+
+.color-indicator {
     width: 16px;
     height: 16px;
-    padding: 0;
-    border: none;
     border-radius: 50%;
+    border: 2px solid var(--text-secondary);
+    transition: transform 0.15s ease;
+}
+
+.color-selector:hover .color-indicator {
+    transform: scale(1.1);
+}
+
+.color-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 8px;
+    display: none;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px;
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    z-index: 100;
+    width: 90px;
+}
+
+.color-selector.open .color-dropdown {
+    display: flex;
+}
+
+.color-option {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    border: 2px solid transparent;
     cursor: pointer;
-    -webkit-appearance: none;
-    appearance: none;
+    transition: transform 0.15s ease, border-color 0.15s ease;
 }
 
-.color-picker::-webkit-color-swatch-wrapper {
-    padding: 0;
+.color-option:hover {
+    transform: scale(1.15);
+    border-color: var(--text-primary);
 }
 
-.color-picker::-webkit-color-swatch {
-    border: none;
-    border-radius: 50%;
+.color-option.selected {
+    border-color: var(--text-primary);
 }
 
 /* Checkbox */
