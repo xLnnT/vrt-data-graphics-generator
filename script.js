@@ -493,6 +493,12 @@ function renderXAxisLogos() {
     const labels = getXAxisLabels();
     const chartArea = chart.chartArea;
     const xScale = chart.scales.x;
+    const canvas = elements.chartCanvas;
+
+    // Get canvas position relative to its parent
+    const canvasRect = canvas.getBoundingClientRect();
+    const wrapperRect = canvas.parentElement.getBoundingClientRect();
+    const canvasOffsetLeft = canvasRect.left - wrapperRect.left;
 
     // Create container for logos
     const logosContainer = document.createElement('div');
@@ -501,23 +507,24 @@ function renderXAxisLogos() {
         position: absolute;
         left: 0;
         right: 0;
-        bottom: ${5 * scaleFactor}px;
-        height: ${55 * scaleFactor}px;
+        bottom: 0;
+        height: ${60 * scaleFactor}px;
         pointer-events: none;
+        z-index: 10;
     `;
 
-    const logoSize = 45 * scaleFactor;
+    const logoSize = 50 * scaleFactor;
 
     labels.forEach((label, index) => {
-        // Get exact center position of this bar
-        const xPos = xScale.getPixelForValue(index);
+        // Get exact center position of this bar relative to canvas
+        const xPos = xScale.getPixelForValue(index) + canvasOffsetLeft;
 
         const logoWrapper = document.createElement('div');
         logoWrapper.style.cssText = `
             position: absolute;
             left: ${xPos}px;
-            top: 0;
-            transform: translateX(-50%);
+            top: 50%;
+            transform: translate(-50%, -50%);
             display: flex;
             justify-content: center;
             align-items: center;
@@ -553,6 +560,7 @@ function renderXAxisLogos() {
     // Append to chart wrapper
     const chartWrapper = elements.chartCanvas.parentElement;
     chartWrapper.style.position = 'relative';
+    chartWrapper.style.overflow = 'visible';
     chartWrapper.appendChild(logosContainer);
 }
 
@@ -648,7 +656,12 @@ function initEventListeners() {
     elements.sourceInput.addEventListener('input', updateTitles);
 
     // Axis inputs
-    elements.xAxisInput.addEventListener('input', updateChart);
+    elements.xAxisInput.addEventListener('input', () => {
+        updateChart();
+        if (elements.showLogos.checked) {
+            updateXAxisDisplay();
+        }
+    });
     elements.yAxisInput.addEventListener('input', updateChart);
 
     // Timeline
