@@ -1061,12 +1061,24 @@ async function exportVideo(format) {
                 'output.mp4'
             ];
         } else if (format === 'mov-alpha') {
-            // MOV with alpha channel (ProRes 4444)
+            // QuickTime ProRes 4444 with alpha, HLG color, 1920x1080, 25fps progressive
+            // Audio: 48000 Hz, stereo, 16-bit
             ffmpegCmd = [
                 '-framerate', '25',
                 '-i', 'frame%05d.png',
-                '-c:v', 'png',
-                '-pix_fmt', 'rgba',
+                '-f', 'lavfi',
+                '-i', 'anullsrc=r=48000:cl=stereo',
+                '-c:v', 'prores_ks',
+                '-profile:v', '4444',
+                '-pix_fmt', 'yuva444p10le',
+                '-s', '1920x1080',
+                '-color_primaries', 'bt2020',
+                '-color_trc', 'arib-std-b67',
+                '-colorspace', 'bt2020nc',
+                '-c:a', 'pcm_s16le',
+                '-ar', '48000',
+                '-ac', '2',
+                '-t', '20',
                 '-y',
                 'output.mov'
             ];
