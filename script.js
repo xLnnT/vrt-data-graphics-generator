@@ -1149,6 +1149,36 @@ function animateChart() {
     const clipTop = (1 - panelProgress) * 100;
     elements.chartContainer.style.clipPath = `inset(${clipTop}% 0 0 0 round 12px)`;
 
+    // Animate title - start 10px lower and animate up with same easing
+    const titleOffset = (1 - panelProgress) * 10;
+    elements.chartTitle.style.transform = `translateY(${titleOffset}px)`;
+
+    // Animate subtitle - delayed by 0.2 seconds
+    const subtitleDelay = 0.2;
+    const subtitleInStart = graphInTime + subtitleDelay;
+    const subtitleInEnd = subtitleInStart + PANEL_ANIMATION_DURATION;
+    const subtitleOutStart = graphOutTime - subtitleDelay;
+    const subtitleOutEnd = subtitleOutStart + PANEL_ANIMATION_DURATION;
+
+    let subtitleProgress = 0;
+    if (currentTime < subtitleInStart) {
+        subtitleProgress = 0;
+    } else if (currentTime < subtitleInEnd) {
+        const t = (currentTime - subtitleInStart) / PANEL_ANIMATION_DURATION;
+        subtitleProgress = cubicBezier(t, PANEL_EASING.cp1x, PANEL_EASING.cp1y, PANEL_EASING.cp2x, PANEL_EASING.cp2y);
+    } else if (currentTime < subtitleOutStart) {
+        subtitleProgress = 1;
+    } else if (currentTime < subtitleOutEnd) {
+        const t = (currentTime - subtitleOutStart) / PANEL_ANIMATION_DURATION;
+        subtitleProgress = 1 - cubicBezier(t, PANEL_EASING.cp1x, PANEL_EASING.cp1y, PANEL_EASING.cp2x, PANEL_EASING.cp2y);
+    } else {
+        subtitleProgress = 0;
+    }
+    subtitleProgress = Math.max(0, Math.min(1, subtitleProgress));
+
+    const subtitleOffset = (1 - subtitleProgress) * 10;
+    elements.chartSubtitle.style.transform = `translateY(${subtitleOffset}px)`;
+
     // Bar animation (uses user-defined easing from the curve editor)
     // Bars animate 0.5 seconds after graphInTime
     const barAnimationDelay = 0.5; // 0.5 seconds after graphInTime
