@@ -456,7 +456,8 @@ function getLogoPath(partyName) {
     const colorMode = elements.monoLogos.checked ? 'mono' : 'kleur';
     // Encode the path properly for special characters
     const path = `assets/Logo's politieke partijen/${region}/${colorMode}/${partyName}.png`;
-    return encodeURI(path);
+    // Add cache-busting parameter to force reload when settings change
+    return encodeURI(path) + '?v=' + Date.now();
 }
 
 // Load party logos based on X-axis labels
