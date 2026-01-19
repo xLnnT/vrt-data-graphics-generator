@@ -102,7 +102,10 @@ function cacheElements() {
         sourceInput: document.getElementById('sourceInput'),
         xAxisInput: document.getElementById('xAxisInput'),
         yAxisInput: document.getElementById('yAxisInput'),
-        dataInput: document.getElementById('dataInput'),
+
+        // Import
+        importArea: document.getElementById('importArea'),
+        dataFileInput: document.getElementById('dataFileInput'),
 
         // Easing
         easingCanvas: document.getElementById('easingCanvas'),
@@ -684,6 +687,121 @@ function updateTotalTimeDisplay() {
     const minutes = Math.floor(state.totalDuration / 60);
     const seconds = Math.floor(state.totalDuration % 60);
     elements.totalTime.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+// ============================================
+// DATA FILE IMPORT
+// ============================================
+
+function handleDataFileImport(file) {
+    if (!file) return;
+
+    const fileName = file.name.toLowerCase();
+    const reader = new FileReader();
+
+    if (fileName.endsWith('.json')) {
+        reader.onload = e => {
+            try {
+                const data = JSON.parse(e.target.result);
+                applyImportedData(data);
+            } catch (error) {
+                alert('Ongeldig JSON bestand: ' + error.message);
+            }
+        };
+        reader.readAsText(file);
+    } else if (fileName.endsWith('.csv')) {
+        reader.onload = e => {
+            try {
+                const data = parseCSV(e.target.result);
+                applyImportedData(data);
+            } catch (error) {
+                alert('Ongeldig CSV bestand: ' + error.message);
+            }
+        };
+        reader.readAsText(file);
+    } else if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) {
+        reader.onload = e => {
+            try {
+                if (typeof XLSX === 'undefined') {
+                    alert('Excel library niet geladen');
+                    return;
+                }
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                const parsedData = parseExcelData(jsonData);
+                applyImportedData(parsedData);
+            } catch (error) {
+                alert('Ongeldig Excel bestand: ' + error.message);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+}
+
+function parseCSV(csvText) {
+    const lines = csvText.trim().split('\n');
+    if (lines.length < 2) {
+        throw new Error('CSV moet minstens 2 rijen hebben (labels en waarden)');
+    }
+
+    // Try to detect delimiter
+    const delimiter = csvText.includes(';') ? ';' : ',';
+
+    const labels = lines[0].split(delimiter).map(s => s.trim().replace(/^["']|["']$/g, ''));
+    const values = lines[1].split(delimiter).map(s => parseFloat(s.trim()) || 0);
+
+    return { labels, values };
+}
+
+function parseExcelData(jsonData) {
+    if (jsonData.length < 2) {
+        throw new Error('Excel moet minstens 2 rijen hebben (labels en waarden)');
+    }
+
+    const labels = jsonData[0].map(cell => String(cell || '').trim());
+    const values = jsonData[1].map(cell => parseFloat(cell) || 0);
+
+    return { labels, values };
+}
+
+function applyImportedData(data) {
+    // Support different data formats
+    let labels = [];
+    let values = [];
+
+    if (Array.isArray(data)) {
+        // Array of objects: [{label: 'A', value: 10}, ...]
+        if (data.length > 0 && typeof data[0] === 'object') {
+            const firstItem = data[0];
+            const labelKey = Object.keys(firstItem).find(k =>
+                ['label', 'name', 'x', 'category', 'jaar', 'year'].includes(k.toLowerCase())
+            ) || Object.keys(firstItem)[0];
+            const valueKey = Object.keys(firstItem).find(k =>
+                ['value', 'y', 'data', 'waarde', 'aantal', 'count'].includes(k.toLowerCase())
+            ) || Object.keys(firstItem)[1];
+
+            labels = data.map(item => String(item[labelKey] || ''));
+            values = data.map(item => parseFloat(item[valueKey]) || 0);
+        }
+    } else if (data.labels && data.values) {
+        // Direct format: {labels: [...], values: [...]}
+        labels = data.labels;
+        values = data.values;
+    } else if (data.x && data.y) {
+        // Alternative format: {x: [...], y: [...]}
+        labels = data.x;
+        values = data.y;
+    }
+
+    if (labels.length > 0 && values.length > 0) {
+        elements.xAxisInput.value = labels.join(',');
+        elements.yAxisInput.value = values.join(',');
+        updateChart();
+    } else {
+        alert('Kon geen geldige data vinden in het bestand');
+    }
 }
 
 // ============================================
@@ -1630,6 +1748,24 @@ function initEventListeners() {
         e.preventDefault();
         elements.uploadArea.style.opacity = '1';
         handleFileUpload(e.dataTransfer.files[0]);
+    });
+
+    // Data file import
+    elements.importArea.addEventListener('click', () => elements.dataFileInput.click());
+    elements.dataFileInput.addEventListener('change', e => handleDataFileImport(e.target.files[0]));
+
+    // Drag and drop for import
+    elements.importArea.addEventListener('dragover', e => {
+        e.preventDefault();
+        elements.importArea.style.opacity = '0.5';
+    });
+    elements.importArea.addEventListener('dragleave', () => {
+        elements.importArea.style.opacity = '1';
+    });
+    elements.importArea.addEventListener('drop', e => {
+        e.preventDefault();
+        elements.importArea.style.opacity = '1';
+        handleDataFileImport(e.dataTransfer.files[0]);
     });
 
     // Title inputs (debounced)
