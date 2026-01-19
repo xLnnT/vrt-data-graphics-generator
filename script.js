@@ -941,6 +941,10 @@ function updateTimelineDisplay() {
     elements.currentTime.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+// Panel swipe animation easing (fixed)
+const PANEL_EASING = { cp1x: 0.00, cp1y: 0.90, cp2x: 0.30, cp2y: 1.00 };
+const PANEL_ANIMATION_DURATION = 1; // 1 second
+
 function animateChart() {
     if (!state.chart) return;
 
@@ -949,20 +953,54 @@ function animateChart() {
     const graphOutTime = parseInt(elements.graphOut.value) || 10;
     const currentTime = (state.currentFrame / totalFrames) * state.totalDuration;
 
-    let progress = 0;
-    if (currentTime < graphInTime) {
-        progress = currentTime / graphInTime;
-    } else if (currentTime < graphOutTime) {
-        progress = 1;
+    // Panel swipe animation (reveals from bottom)
+    let panelProgress = 0;
+    const panelInStart = graphInTime;
+    const panelInEnd = graphInTime + PANEL_ANIMATION_DURATION;
+    const panelOutStart = graphOutTime;
+    const panelOutEnd = graphOutTime + PANEL_ANIMATION_DURATION;
+
+    if (currentTime < panelInStart) {
+        // Before animation starts - panel hidden
+        panelProgress = 0;
+    } else if (currentTime < panelInEnd) {
+        // Swipe in animation
+        const t = (currentTime - panelInStart) / PANEL_ANIMATION_DURATION;
+        panelProgress = cubicBezier(t, PANEL_EASING.cp1x, PANEL_EASING.cp1y, PANEL_EASING.cp2x, PANEL_EASING.cp2y);
+    } else if (currentTime < panelOutStart) {
+        // Fully visible
+        panelProgress = 1;
+    } else if (currentTime < panelOutEnd) {
+        // Swipe out animation
+        const t = (currentTime - panelOutStart) / PANEL_ANIMATION_DURATION;
+        panelProgress = 1 - cubicBezier(t, PANEL_EASING.cp1x, PANEL_EASING.cp1y, PANEL_EASING.cp2x, PANEL_EASING.cp2y);
     } else {
-        progress = 1 - ((currentTime - graphOutTime) / (state.totalDuration - graphOutTime));
+        // After animation ends - panel hidden
+        panelProgress = 0;
     }
 
-    progress = Math.max(0, Math.min(1, progress));
-    progress = cubicBezier(progress, state.easingPoints.cp1x, state.easingPoints.cp1y, state.easingPoints.cp2x, state.easingPoints.cp2y);
+    panelProgress = Math.max(0, Math.min(1, panelProgress));
+
+    // Apply clip-path to reveal panel from bottom
+    // inset(bottom right top left) - we animate the bottom inset from 100% to 0%
+    const clipBottom = (1 - panelProgress) * 100;
+    elements.chartContainer.style.clipPath = `inset(0 0 ${clipBottom}% 0 round 12px)`;
+
+    // Bar animation (uses user-defined easing from the curve editor)
+    let barProgress = 0;
+    if (currentTime < graphInTime) {
+        barProgress = currentTime / graphInTime;
+    } else if (currentTime < graphOutTime) {
+        barProgress = 1;
+    } else {
+        barProgress = 1 - ((currentTime - graphOutTime) / (state.totalDuration - graphOutTime));
+    }
+
+    barProgress = Math.max(0, Math.min(1, barProgress));
+    barProgress = cubicBezier(barProgress, state.easingPoints.cp1x, state.easingPoints.cp1y, state.easingPoints.cp2x, state.easingPoints.cp2y);
 
     const originalData = getYAxisData();
-    state.chart.data.datasets[0].data = originalData.map(val => val * progress);
+    state.chart.data.datasets[0].data = originalData.map(val => val * barProgress);
     state.chart.update('none');
 }
 
