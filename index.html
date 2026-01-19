@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VRT Data Graphics Generator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo-container">
+                <svg class="logo" viewBox="0 0 184 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <text x="0" y="30" fill="white" font-size="28" font-weight="600" font-family="Roobert VRT, sans-serif">vrt nws</text>
+                </svg>
+                <span class="logo-subtitle">data graphics generator</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Left Sidebar -->
+            <aside class="sidebar sidebar-left">
+                <!-- Datavizualisatie Section -->
+                <section class="panel">
+                    <h3 class="panel-title">Datavizualisatie</h3>
+                    <div class="form-group">
+                        <select id="chartType" class="select-input">
+                            <option value="bar-vertical">Balken staand</option>
+                            <option value="bar-horizontal">Balken liggend</option>
+                            <option value="line">Lijngrafiek</option>
+                            <option value="pie">Taartdiagram</option>
+                            <option value="donut">Donutdiagram</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">midden</label>
+                        <select id="position" class="select-input">
+                            <option value="center">Midden</option>
+                            <option value="left">Links</option>
+                            <option value="right">Rechts</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">breedte</label>
+                        <div class="slider-container">
+                            <input type="range" id="width" class="slider" min="50" max="100" value="75">
+                            <div class="slider-track"></div>
+                            <div class="slider-thumb"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Kleurenpalet Section -->
+                <section class="panel">
+                    <h3 class="panel-title">Kleurenpalet</h3>
+                    <div class="color-row">
+                        <span class="color-label">primair</span>
+                        <input type="color" id="primaryColor" class="color-picker" value="#5541F0">
+                    </div>
+                    <div class="color-row">
+                        <span class="color-label">secundair</span>
+                        <input type="color" id="secondaryColor" class="color-picker" value="#00BEAA">
+                    </div>
+                    <div class="color-row">
+                        <span class="color-label">highlight</span>
+                        <input type="color" id="highlightColor" class="color-picker" value="#7767ED">
+                    </div>
+                </section>
+
+                <!-- Text/Logos Section -->
+                <section class="panel panel-small">
+                    <div class="checkbox-row">
+                        <span class="checkbox-label">tekst</span>
+                        <input type="checkbox" id="showText" class="checkbox" checked>
+                    </div>
+                    <div class="checkbox-row">
+                        <span class="checkbox-label">logo's</span>
+                        <input type="checkbox" id="showLogos" class="checkbox">
+                    </div>
+                </section>
+
+                <!-- Upload Section -->
+                <section class="panel upload-panel">
+                    <h3 class="panel-title">Selecteer video of foto om te uploaden</h3>
+                    <div class="upload-area" id="uploadArea">
+                        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <input type="file" id="fileInput" accept="image/*,video/*" hidden>
+                    </div>
+                </section>
+
+                <!-- Motion Section -->
+                <section class="panel">
+                    <h3 class="panel-title">motion</h3>
+                    <div class="motion-row">
+                        <span class="motion-label">grafiek in</span>
+                        <input type="number" id="graphIn" class="number-input" value="5" min="0" max="60">
+                        <span class="motion-unit">sec</span>
+                    </div>
+                    <div class="motion-row">
+                        <span class="motion-label">grafiek uit</span>
+                        <input type="number" id="graphOut" class="number-input" value="15" min="0" max="60">
+                        <span class="motion-unit">sec</span>
+                    </div>
+                </section>
+            </aside>
+
+            <!-- Preview Area -->
+            <div class="preview-container">
+                <div class="preview-area" id="previewArea">
+                    <div class="preview-background" id="previewBackground"></div>
+                    <div class="chart-container">
+                        <h1 class="chart-title" id="chartTitle">Titel</h1>
+                        <h2 class="chart-subtitle" id="chartSubtitle">Subtitel</h2>
+                        <div class="chart-wrapper">
+                            <canvas id="chartCanvas"></canvas>
+                        </div>
+                        <div class="chart-source" id="chartSource"></div>
+                    </div>
+                    <div class="preview-badge" id="previewBadge">Coronacrisis</div>
+                </div>
+            </div>
+
+            <!-- Right Sidebar -->
+            <aside class="sidebar sidebar-right">
+                <!-- Title Section -->
+                <section class="panel">
+                    <div class="input-row">
+                        <label class="input-label">titel</label>
+                        <input type="text" id="titleInput" class="text-input" placeholder="Titel" value="Titel">
+                    </div>
+                    <div class="input-row">
+                        <label class="input-label">subtitel</label>
+                        <input type="text" id="subtitleInput" class="text-input" placeholder="Subtitel" value="Subtitel">
+                    </div>
+                    <div class="input-row">
+                        <label class="input-label">bron</label>
+                        <input type="text" id="sourceInput" class="text-input" placeholder="bron">
+                    </div>
+                </section>
+
+                <!-- Input X en Y as Section -->
+                <section class="panel">
+                    <h3 class="panel-title">input X en Y as</h3>
+                    <div class="input-row">
+                        <label class="input-label">X:</label>
+                        <input type="text" id="xAxisInput" class="text-input" placeholder="2016,2017,2018,2019,2020,2021,2022,2023,2024,2025,2026" value="2011,2012,2013,2014,2015,2016,2017,2018">
+                    </div>
+                    <div class="input-row">
+                        <label class="input-label">Y:</label>
+                        <input type="text" id="yAxisInput" class="text-input" placeholder="10%,20%,30%,40%,50%,60%,70%,80%,90%,100%" value="30,38,25,28,35,48,32,35">
+                    </div>
+                </section>
+
+                <!-- Input Data Section -->
+                <section class="panel">
+                    <h3 class="panel-title">input data</h3>
+                    <input type="text" id="dataInput" class="text-input full-width" placeholder="Enter data...">
+                </section>
+
+                <!-- Easing Curve Section -->
+                <section class="panel easing-panel">
+                    <h3 class="panel-title">Easing curve</h3>
+                    <div class="easing-canvas-container">
+                        <canvas id="easingCanvas" width="200" height="200"></canvas>
+                        <div class="easing-point easing-point-start" id="easingStart"></div>
+                        <div class="easing-point easing-point-end" id="easingEnd"></div>
+                    </div>
+                    <div class="easing-output">
+                        <span id="easingValues">0.25,0.25,0.75,0.75</span>
+                    </div>
+                </section>
+
+                <!-- Output Section -->
+                <section class="panel">
+                    <h3 class="panel-title">output</h3>
+                    <div class="output-buttons">
+                        <button class="output-btn" data-format="mp4-audio">mp4 met audio</button>
+                        <button class="output-btn" data-format="mp4-noaudio">mp4 zonder audio</button>
+                        <button class="output-btn" data-format="mov-alpha">MOV + alpha</button>
+                        <button class="output-btn" data-format="png">PNG</button>
+                        <button class="output-btn" data-format="jpg">JPG</button>
+                    </div>
+                </section>
+            </aside>
+        </main>
+
+        <!-- Timeline -->
+        <footer class="timeline">
+            <button class="play-btn" id="playBtn">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+            </button>
+            <span class="time-display" id="currentTime">0:00</span>
+            <div class="timeline-track">
+                <div class="timeline-progress" id="timelineProgress"></div>
+                <div class="timeline-thumb" id="timelineThumb"></div>
+            </div>
+            <span class="time-display" id="totalTime">20:00</span>
+        </footer>
+
+        <!-- Credits -->
+        <div class="credits">
+            <p>A graphics generator by</p>
+            <p>Lennert Nuyttens</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
