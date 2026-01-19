@@ -1611,9 +1611,11 @@ function initEventListeners() {
     elements.playBtn.addEventListener('click', togglePlayback);
 
     const timelineTrack = elements.timelineProgress.parentElement;
-    timelineTrack.addEventListener('click', e => {
+    let timelineDragging = false;
+
+    function updateTimelinePosition(e) {
         const rect = timelineTrack.getBoundingClientRect();
-        const percent = (e.clientX - rect.left) / rect.width;
+        const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
         state.currentFrame = Math.floor(percent * getTotalFrames());
         updateTimelineDisplay();
         animateChart();
@@ -1623,6 +1625,41 @@ function initEventListeners() {
         if (bgVideo) {
             bgVideo.currentTime = percent * state.totalDuration;
         }
+    }
+
+    timelineTrack.addEventListener('mousedown', e => {
+        timelineDragging = true;
+        updateTimelinePosition(e);
+        elements.timelineThumb.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mousemove', e => {
+        if (timelineDragging) {
+            updateTimelinePosition(e);
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (timelineDragging) {
+            timelineDragging = false;
+            elements.timelineThumb.style.cursor = 'grab';
+        }
+    });
+
+    // Touch support for timeline
+    timelineTrack.addEventListener('touchstart', e => {
+        timelineDragging = true;
+        updateTimelinePosition({ clientX: e.touches[0].clientX });
+    }, { passive: true });
+
+    document.addEventListener('touchmove', e => {
+        if (timelineDragging) {
+            updateTimelinePosition({ clientX: e.touches[0].clientX });
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchend', () => {
+        timelineDragging = false;
     });
 
     // Output buttons
