@@ -425,7 +425,7 @@ function updateXAxisDisplay() {
     if (!chart) return;
 
     const showLogos = elements.showLogos.checked;
-    const logoPadding = 60 * scaleFactor;
+    const logoPadding = 110 * scaleFactor;
 
     if (showLogos) {
         // Load and display logos
@@ -508,12 +508,12 @@ function renderXAxisLogos() {
         left: 0;
         right: 0;
         bottom: 0;
-        height: ${60 * scaleFactor}px;
+        height: ${110 * scaleFactor}px;
         pointer-events: none;
         z-index: 10;
     `;
 
-    const logoSize = 50 * scaleFactor;
+    const logoSize = 100 * scaleFactor;
 
     labels.forEach((label, index) => {
         // Get exact center position of this bar relative to canvas
