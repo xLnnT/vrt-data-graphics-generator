@@ -1006,7 +1006,7 @@ async function captureFrame(withAlpha = false) {
             // Draw semi-transparent white panel
             ctx.beginPath();
             ctx.roundRect(panelX, panelY, panelWidth, panelHeight, borderRadius);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
             ctx.fill();
 
             // Capture and draw chart content
@@ -1335,7 +1335,7 @@ async function createGlassEffect(backgroundCanvas, containerRect, previewRect) {
     ctx.filter = 'none';
 
     // Draw semi-transparent white overlay
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
     ctx.restore();
 
@@ -1410,7 +1410,7 @@ async function handleExport(format) {
             // Draw semi-transparent white panel with rounded corners
             ctx.beginPath();
             ctx.roundRect(panelX, panelY, panelWidth, panelHeight, borderRadius);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
             ctx.fill();
 
             // Capture and draw chart content
