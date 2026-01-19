@@ -531,11 +531,13 @@ function updateTitles() {
 
 async function handleTextLogoToggle(e) {
     const checkbox = e.target;
+    const isTextCheckbox = checkbox.id === 'showText';
+    const isLogosCheckbox = checkbox.id === 'showLogos';
 
-    if (checkbox === elements.showText && checkbox.checked) {
+    if (isTextCheckbox && checkbox.checked) {
+        // Text enabled - disable logos
         elements.showLogos.checked = false;
         elements.logoOptions.style.display = 'none';
-        // Show text labels
         if (state.chart) {
             state.chart.options.scales.x.ticks.display = true;
             if (state.chart.options.layout?.padding) {
@@ -544,11 +546,15 @@ async function handleTextLogoToggle(e) {
             state.chart.update();
         }
         removeLogos();
-    } else if (checkbox === elements.showLogos && checkbox.checked) {
+    } else if (isLogosCheckbox && checkbox.checked) {
+        // Logos enabled - disable text, load and show logos
         elements.showText.checked = false;
         elements.logoOptions.style.display = 'block';
-        // Force load and display logos
+
+        // Load logos first
         await loadLogos();
+
+        // Update chart layout
         if (state.chart) {
             const logoPadding = 225 * state.scaleFactor;
             state.chart.options.scales.x.ticks.display = false;
@@ -556,11 +562,15 @@ async function handleTextLogoToggle(e) {
             state.chart.options.layout.padding = state.chart.options.layout.padding || {};
             state.chart.options.layout.padding.bottom = logoPadding;
             state.chart.update();
+
+            // Render logos after chart update
+            requestAnimationFrame(() => {
+                updateLogoPositions();
+            });
         }
-        updateLogoPositions();
-    } else if (checkbox === elements.showLogos && !checkbox.checked) {
+    } else if (isLogosCheckbox && !checkbox.checked) {
+        // Logos disabled - show text labels
         elements.logoOptions.style.display = 'none';
-        // Hide logos, show text
         if (state.chart) {
             state.chart.options.scales.x.ticks.display = true;
             if (state.chart.options.layout?.padding) {
