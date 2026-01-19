@@ -49,7 +49,7 @@ const state = {
     highlightedBars: new Set([5]),
     logoImages: {},
     logoSettings: { region: '', mono: false, labels: [] },
-    easingPoints: { cp1x: 0.25, cp1y: 0.25, cp2x: 0.75, cp2y: 0.75 },
+    easingPoints: { cp1x: 0.90, cp1y: 0.00, cp2x: 0.30, cp2y: 1.00 },
     pendingUpdates: new Set()
 };
 
