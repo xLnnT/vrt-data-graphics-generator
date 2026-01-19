@@ -701,16 +701,16 @@ function initEasingCanvas() {
     canvas.height = canvas.offsetHeight * 2;
     ctx.scale(2, 2);
 
-    // Add mouse/touch interaction
+    // Add mouse interaction - mousedown on canvas, move/up on document for dragging outside
     canvas.addEventListener('mousedown', handleEasingMouseDown);
-    canvas.addEventListener('mousemove', handleEasingMouseMove);
-    canvas.addEventListener('mouseup', handleEasingMouseUp);
-    canvas.addEventListener('mouseleave', handleEasingMouseUp);
+    canvas.addEventListener('mousemove', handleEasingCanvasHover);
+    document.addEventListener('mousemove', handleEasingMouseMove);
+    document.addEventListener('mouseup', handleEasingMouseUp);
 
     // Touch support
     canvas.addEventListener('touchstart', handleEasingTouchStart, { passive: false });
-    canvas.addEventListener('touchmove', handleEasingTouchMove, { passive: false });
-    canvas.addEventListener('touchend', handleEasingMouseUp);
+    document.addEventListener('touchmove', handleEasingTouchMove, { passive: false });
+    document.addEventListener('touchend', handleEasingMouseUp);
 
     drawEasingCurve();
 }
@@ -743,28 +743,32 @@ function handleEasingMouseDown(e) {
 }
 
 function handleEasingMouseMove(e) {
+    if (!easingDragging) return;
+
     const coords = getEasingCanvasCoords(e);
 
-    if (easingDragging) {
-        if (easingDragging === 'cp1') {
-            state.easingPoints.cp1x = coords.x;
-            state.easingPoints.cp1y = coords.y;
-        } else if (easingDragging === 'cp2') {
-            state.easingPoints.cp2x = coords.x;
-            state.easingPoints.cp2y = coords.y;
-        }
-        drawEasingCurve();
-    } else {
-        // Update cursor based on hover
-        const { cp1x, cp1y, cp2x, cp2y } = state.easingPoints;
-        const dist1 = Math.hypot(coords.x - cp1x, coords.y - cp1y);
-        const dist2 = Math.hypot(coords.x - cp2x, coords.y - cp2y);
+    if (easingDragging === 'cp1') {
+        state.easingPoints.cp1x = Math.max(0, Math.min(1, coords.x));
+        state.easingPoints.cp1y = coords.y; // Allow Y to go outside 0-1 for overshoot
+    } else if (easingDragging === 'cp2') {
+        state.easingPoints.cp2x = Math.max(0, Math.min(1, coords.x));
+        state.easingPoints.cp2y = coords.y; // Allow Y to go outside 0-1 for overshoot
+    }
+    drawEasingCurve();
+}
 
-        if (dist1 < 0.15 || dist2 < 0.15) {
-            elements.easingCanvas.style.cursor = 'grab';
-        } else {
-            elements.easingCanvas.style.cursor = 'default';
-        }
+function handleEasingCanvasHover(e) {
+    if (easingDragging) return;
+
+    const coords = getEasingCanvasCoords(e);
+    const { cp1x, cp1y, cp2x, cp2y } = state.easingPoints;
+    const dist1 = Math.hypot(coords.x - cp1x, coords.y - cp1y);
+    const dist2 = Math.hypot(coords.x - cp2x, coords.y - cp2y);
+
+    if (dist1 < 0.15 || dist2 < 0.15) {
+        elements.easingCanvas.style.cursor = 'grab';
+    } else {
+        elements.easingCanvas.style.cursor = 'default';
     }
 }
 
