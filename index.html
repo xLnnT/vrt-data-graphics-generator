@@ -141,6 +141,10 @@
                         </svg>
                         <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.mp4,.mov,.avi,.mxf" hidden>
                     </div>
+                    <div class="file-display" id="uploadFileDisplay" style="display: none;">
+                        <span class="file-name" id="uploadFileName"></span>
+                        <button class="file-delete" id="uploadFileDelete" title="Verwijder">&times;</button>
+                    </div>
                 </section>
 
                 <!-- Motion Section -->
@@ -218,6 +222,10 @@
                         </svg>
                         <span class="import-text">.json .csv .xls</span>
                         <input type="file" id="dataFileInput" accept=".json,.csv,.xls,.xlsx" hidden>
+                    </div>
+                    <div class="file-display" id="importFileDisplay" style="display: none;">
+                        <span class="file-name" id="importFileName"></span>
+                        <button class="file-delete" id="importFileDelete" title="Verwijder">&times;</button>
                     </div>
                 </section>
 

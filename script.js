@@ -106,6 +106,14 @@ function cacheElements() {
         // Import
         importArea: document.getElementById('importArea'),
         dataFileInput: document.getElementById('dataFileInput'),
+        importFileDisplay: document.getElementById('importFileDisplay'),
+        importFileName: document.getElementById('importFileName'),
+        importFileDelete: document.getElementById('importFileDelete'),
+
+        // Upload file display
+        uploadFileDisplay: document.getElementById('uploadFileDisplay'),
+        uploadFileName: document.getElementById('uploadFileName'),
+        uploadFileDelete: document.getElementById('uploadFileDelete'),
 
         // Easing
         easingCanvas: document.getElementById('easingCanvas'),
@@ -681,6 +689,23 @@ function handleFileUpload(file) {
         };
         reader.readAsDataURL(file);
     }
+
+    // Show file name and delete button
+    elements.uploadFileName.textContent = file.name;
+    elements.uploadFileDisplay.style.display = 'flex';
+    elements.uploadArea.style.display = 'none';
+}
+
+function clearUploadedFile() {
+    elements.previewBackground.style.backgroundImage = '';
+    elements.previewBackground.innerHTML = '';
+    elements.fileInput.value = '';
+    elements.uploadFileDisplay.style.display = 'none';
+    elements.uploadArea.style.display = 'flex';
+    state.totalDuration = 20;
+    state.currentFrame = 0;
+    updateTotalTimeDisplay();
+    updateTimelineDisplay();
 }
 
 function updateTotalTimeDisplay() {
@@ -696,14 +721,22 @@ function updateTotalTimeDisplay() {
 function handleDataFileImport(file) {
     if (!file) return;
 
+    const originalFileName = file.name;
     const fileName = file.name.toLowerCase();
     const reader = new FileReader();
+
+    const showFileDisplay = () => {
+        elements.importFileName.textContent = originalFileName;
+        elements.importFileDisplay.style.display = 'flex';
+        elements.importArea.style.display = 'none';
+    };
 
     if (fileName.endsWith('.json')) {
         reader.onload = e => {
             try {
                 const data = JSON.parse(e.target.result);
                 applyImportedData(data);
+                showFileDisplay();
             } catch (error) {
                 alert('Ongeldig JSON bestand: ' + error.message);
             }
@@ -714,6 +747,7 @@ function handleDataFileImport(file) {
             try {
                 const data = parseCSV(e.target.result);
                 applyImportedData(data);
+                showFileDisplay();
             } catch (error) {
                 alert('Ongeldig CSV bestand: ' + error.message);
             }
@@ -732,12 +766,23 @@ function handleDataFileImport(file) {
                 const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
                 const parsedData = parseExcelData(jsonData);
                 applyImportedData(parsedData);
+                showFileDisplay();
             } catch (error) {
                 alert('Ongeldig Excel bestand: ' + error.message);
             }
         };
         reader.readAsArrayBuffer(file);
     }
+}
+
+function clearImportedFile() {
+    elements.dataFileInput.value = '';
+    elements.importFileDisplay.style.display = 'none';
+    elements.importArea.style.display = 'flex';
+    // Optionally clear the data - uncomment if desired:
+    // elements.xAxisInput.value = '';
+    // elements.yAxisInput.value = '';
+    // updateChart();
 }
 
 function parseCSV(csvText) {
@@ -1767,6 +1812,10 @@ function initEventListeners() {
         elements.importArea.style.opacity = '1';
         handleDataFileImport(e.dataTransfer.files[0]);
     });
+
+    // Delete buttons for uploaded files
+    elements.uploadFileDelete.addEventListener('click', clearUploadedFile);
+    elements.importFileDelete.addEventListener('click', clearImportedFile);
 
     // Title inputs (debounced)
     elements.titleInput.addEventListener('input', debouncedTitleUpdate);
