@@ -384,6 +384,10 @@ function updateLogoPositions() {
     const logoSize = 80 * scaleFactor;
     const topPosition = chartArea.bottom + (10 * scaleFactor);
 
+    // Get canvas offset relative to wrapper (accounts for padding/centering)
+    const canvas = elements.chartCanvas;
+    const canvasOffset = canvas.offsetLeft;
+
     // Create container
     const container = document.createElement('div');
     container.id = 'xAxisLogos';
@@ -399,7 +403,8 @@ function updateLogoPositions() {
 
     // Add logos
     labels.forEach((label, index) => {
-        const xPos = xScale.getPixelForValue(index);
+        // Add canvas offset to account for wrapper padding/centering
+        const xPos = xScale.getPixelForValue(index) + canvasOffset;
 
         const wrapper = document.createElement('div');
         wrapper.style.cssText = `
