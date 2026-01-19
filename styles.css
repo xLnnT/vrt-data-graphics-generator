@@ -414,8 +414,9 @@ body {
 /* Preview Container */
 .preview-container {
     display: flex;
-    justify-content: center;
-    align-items: flex-start;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
     height: 100%;
 }
 
@@ -454,7 +455,7 @@ body {
 .chart-title {
     font-size: var(--title-size, 36px);
     font-weight: 600;
-    color: #1a1a2e;
+    color: #031037;
     text-align: center;
     line-height: 1.1;
     padding: var(--padding-v, 20px) var(--padding-h, 30px) 0;
@@ -464,7 +465,7 @@ body {
 .chart-subtitle {
     font-size: var(--subtitle-size, 20px);
     font-weight: 500;
-    color: #5541F0;
+    color: #031037;
     text-align: center;
     margin-top: var(--spacing-sm, 4px);
     padding: 0 var(--padding-h, 30px);
@@ -709,8 +710,9 @@ body {
     font-size: 10px;
     color: var(--text-secondary);
     line-height: 1.4;
-    margin-top: auto;
-    padding-top: 16px;
+    margin-top: 8px;
+    align-self: flex-start;
+    width: 100%;
 }
 
 /* Responsive */
