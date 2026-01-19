@@ -894,22 +894,40 @@ async function initFFmpeg() {
     if (ffmpegLoaded) return true;
 
     try {
+        // Check if FFmpeg libraries are available
+        if (typeof FFmpegWASM === 'undefined' || typeof FFmpegUtil === 'undefined') {
+            throw new Error('FFmpeg libraries not loaded. Please run from a local server (npx serve .)');
+        }
+
         const { FFmpeg } = FFmpegWASM;
-        const { fetchFile, toBlobURL } = FFmpegUtil;
+        const { toBlobURL } = FFmpegUtil;
 
         ffmpeg = new FFmpeg();
 
-        // Load FFmpeg core
+        // Log progress
+        ffmpeg.on('log', ({ message }) => {
+            console.log('FFmpeg:', message);
+        });
+
+        ffmpeg.on('progress', ({ progress }) => {
+            if (progress > 0) {
+                showExportProgress('Video encoderen...', 70 + (progress * 25));
+            }
+        });
+
+        // Load FFmpeg core with CORS-friendly approach
+        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+
         await ffmpeg.load({
-            coreURL: await toBlobURL('https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js', 'text/javascript'),
-            wasmURL: await toBlobURL('https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm', 'application/wasm')
+            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
         });
 
         ffmpegLoaded = true;
         return true;
     } catch (error) {
         console.error('Failed to load FFmpeg:', error);
-        alert('FFmpeg kon niet worden geladen. Video export is niet beschikbaar.');
+        alert(`FFmpeg kon niet worden geladen: ${error.message}\n\nTip: Run the app from a local server using "npx serve ." in the project folder.`);
         return false;
     }
 }
@@ -957,51 +975,69 @@ function hideExportProgress() {
     }
 }
 
-// Capture single frame
+// Capture single frame with proper glass effect
 async function captureFrame(withAlpha = false) {
-    return new Promise((resolve) => {
-        if (typeof html2canvas !== 'undefined') {
-            // For alpha channel export, capture only the chart container with transparent background
-            const targetElement = withAlpha ? elements.chartContainer : elements.previewArea;
+    try {
+        if (typeof html2canvas === 'undefined') {
+            return elements.chartCanvas;
+        }
 
-            html2canvas(targetElement, {
-                scale: withAlpha ? 1920 / targetElement.offsetWidth : 1,
-                backgroundColor: withAlpha ? null : undefined, // null = transparent
+        const containerRect = elements.chartContainer.getBoundingClientRect();
+        const previewRect = elements.previewArea.getBoundingClientRect();
+        const scaleX = 1920 / previewRect.width;
+        const scaleY = 1080 / previewRect.height;
+        const panelX = (containerRect.left - previewRect.left) * scaleX;
+        const panelY = (containerRect.top - previewRect.top) * scaleY;
+        const panelWidth = containerRect.width * scaleX;
+        const panelHeight = containerRect.height * scaleY;
+        const borderRadius = 12 * scaleX;
+
+        if (withAlpha) {
+            // MOV + alpha: transparent background with glass panel
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 1920;
+            canvas.height = 1080;
+
+            // Draw semi-transparent white panel
+            ctx.beginPath();
+            ctx.roundRect(panelX, panelY, panelWidth, panelHeight, borderRadius);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+            ctx.fill();
+
+            // Capture and draw chart content
+            const chartCanvas = await html2canvas(elements.chartContainer, {
+                scale: 1920 / elements.chartContainer.offsetWidth,
+                backgroundColor: null,
                 useCORS: true,
                 allowTaint: true
-            }).then(canvas => {
-                if (withAlpha) {
-                    // Create full-size canvas and center the chart
-                    const fullCanvas = document.createElement('canvas');
-                    fullCanvas.width = 1920;
-                    fullCanvas.height = 1080;
-                    const ctx = fullCanvas.getContext('2d');
-
-                    // Keep transparent background
-                    ctx.clearRect(0, 0, 1920, 1080);
-
-                    // Calculate position to center the chart container
-                    const containerRect = elements.chartContainer.getBoundingClientRect();
-                    const previewRect = elements.previewArea.getBoundingClientRect();
-                    const scaleX = 1920 / previewRect.width;
-                    const scaleY = 1080 / previewRect.height;
-                    const offsetX = (containerRect.left - previewRect.left) * scaleX;
-                    const offsetY = (containerRect.top - previewRect.top) * scaleY;
-                    const width = containerRect.width * scaleX;
-                    const height = containerRect.height * scaleY;
-
-                    ctx.drawImage(canvas, offsetX, offsetY, width, height);
-                    resolve(fullCanvas);
-                } else {
-                    resolve(canvas);
-                }
-            }).catch(() => {
-                resolve(elements.chartCanvas);
             });
+
+            ctx.drawImage(chartCanvas, panelX, panelY, panelWidth, panelHeight);
+            return canvas;
         } else {
-            resolve(elements.chartCanvas);
+            // MP4: full frame with background and glass effect
+            const bgCanvas = await captureBackground();
+            const { canvas: glassCanvas } = await createGlassEffect(bgCanvas, containerRect, previewRect);
+
+            // Capture chart content
+            const chartCanvas = await html2canvas(elements.chartContainer, {
+                scale: 1920 / elements.chartContainer.offsetWidth,
+                backgroundColor: null,
+                useCORS: true,
+                allowTaint: true
+            });
+
+            // Draw chart on glass
+            const ctx = glassCanvas.getContext('2d');
+            ctx.drawImage(chartCanvas, panelX, panelY, panelWidth, panelHeight);
+
+            return glassCanvas;
         }
-    });
+    } catch (error) {
+        console.error('Frame capture failed:', error);
+        return elements.chartCanvas;
+    }
 }
 
 // Export video with FFmpeg
@@ -1219,6 +1255,89 @@ async function exportVideo(format) {
     isExporting = false;
 }
 
+// Capture background (image or video frame) to canvas
+async function captureBackground() {
+    return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 1920;
+        canvas.height = 1080;
+
+        // Check for video background
+        const bgVideo = elements.previewBackground.querySelector('video');
+        if (bgVideo && bgVideo.readyState >= 2) {
+            // Draw video frame
+            ctx.drawImage(bgVideo, 0, 0, 1920, 1080);
+            resolve(canvas);
+            return;
+        }
+
+        // Check for image background
+        const bgStyle = elements.previewBackground.style.backgroundImage;
+        if (bgStyle && bgStyle !== 'none' && bgStyle !== '') {
+            const urlMatch = bgStyle.match(/url\(["']?([^"']+)["']?\)/);
+            if (urlMatch) {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0, 1920, 1080);
+                    resolve(canvas);
+                };
+                img.onerror = () => {
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, 0, 1920, 1080);
+                    resolve(canvas);
+                };
+                img.src = urlMatch[1];
+                return;
+            }
+        }
+
+        // No background - fill with black
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(0, 0, 1920, 1080);
+        resolve(canvas);
+    });
+}
+
+// Create blurred glass panel effect manually
+async function createGlassEffect(backgroundCanvas, containerRect, previewRect) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 1920;
+    canvas.height = 1080;
+
+    // Calculate panel position in 1920x1080 space
+    const scaleX = 1920 / previewRect.width;
+    const scaleY = 1080 / previewRect.height;
+    const panelX = (containerRect.left - previewRect.left) * scaleX;
+    const panelY = (containerRect.top - previewRect.top) * scaleY;
+    const panelWidth = containerRect.width * scaleX;
+    const panelHeight = containerRect.height * scaleY;
+    const borderRadius = 12 * scaleX;
+
+    // Draw background
+    ctx.drawImage(backgroundCanvas, 0, 0);
+
+    // Create clipping path for rounded rectangle
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(panelX, panelY, panelWidth, panelHeight, borderRadius);
+    ctx.clip();
+
+    // Draw blurred background in panel area
+    ctx.filter = 'blur(20px)';
+    ctx.drawImage(backgroundCanvas, 0, 0);
+    ctx.filter = 'none';
+
+    // Draw semi-transparent white overlay
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+    ctx.restore();
+
+    return { canvas, panelX, panelY, panelWidth, panelHeight };
+}
+
 // Main export handler
 async function handleExport(format) {
     // Video formats use FFmpeg
@@ -1236,69 +1355,78 @@ async function handleExport(format) {
         return;
     }
 
+    const containerRect = elements.chartContainer.getBoundingClientRect();
+    const previewRect = elements.previewArea.getBoundingClientRect();
+
     if (format === 'jpg') {
-        // JPG: Capture full preview area (background + graph) at 1920x1080
-        html2canvas(elements.previewArea, {
-            scale: 1920 / elements.previewArea.offsetWidth,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: '#000000'
-        }).then(capturedCanvas => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = 1920;
-            canvas.height = 1080;
-            ctx.drawImage(capturedCanvas, 0, 0, 1920, 1080);
+        try {
+            // Capture background
+            const bgCanvas = await captureBackground();
+
+            // Create glass effect
+            const { canvas: glassCanvas, panelX, panelY, panelWidth, panelHeight } =
+                await createGlassEffect(bgCanvas, containerRect, previewRect);
+
+            // Capture chart content (without background)
+            const chartCanvas = await html2canvas(elements.chartContainer, {
+                scale: 1920 / elements.chartContainer.offsetWidth,
+                backgroundColor: null,
+                useCORS: true,
+                allowTaint: true
+            });
+
+            // Draw chart content on top of glass effect
+            const ctx = glassCanvas.getContext('2d');
+            ctx.drawImage(chartCanvas, panelX, panelY, panelWidth, panelHeight);
 
             const link = document.createElement('a');
             link.download = 'vrt-graphic.jpg';
-            link.href = canvas.toDataURL('image/jpeg', 0.95);
+            link.href = glassCanvas.toDataURL('image/jpeg', 0.95);
             link.click();
-        }).catch(() => {
-            const link = document.createElement('a');
-            link.download = 'vrt-chart.jpg';
-            link.href = elements.chartCanvas.toDataURL('image/jpeg', 0.95);
-            link.click();
-        });
+        } catch (error) {
+            console.error('JPG export failed:', error);
+            alert('JPG export mislukt: ' + error.message);
+        }
     } else if (format === 'png') {
-        // PNG: Capture only chart container with transparency at 1920x1080
-        html2canvas(elements.chartContainer, {
-            scale: 1920 / elements.chartContainer.offsetWidth,
-            backgroundColor: null, // Transparent background
-            useCORS: true,
-            allowTaint: true
-        }).then(capturedCanvas => {
-            // Create final canvas at exact 1920x1080 with transparency
+        try {
+            // PNG: Chart with glass effect but transparent outside the panel
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             canvas.width = 1920;
             canvas.height = 1080;
 
-            // Keep transparent background
-            ctx.clearRect(0, 0, 1920, 1080);
-
-            // Calculate position to center the chart container
-            const containerRect = elements.chartContainer.getBoundingClientRect();
-            const previewRect = elements.previewArea.getBoundingClientRect();
             const scaleX = 1920 / previewRect.width;
             const scaleY = 1080 / previewRect.height;
-            const offsetX = (containerRect.left - previewRect.left) * scaleX;
-            const offsetY = (containerRect.top - previewRect.top) * scaleY;
-            const width = containerRect.width * scaleX;
-            const height = containerRect.height * scaleY;
+            const panelX = (containerRect.left - previewRect.left) * scaleX;
+            const panelY = (containerRect.top - previewRect.top) * scaleY;
+            const panelWidth = containerRect.width * scaleX;
+            const panelHeight = containerRect.height * scaleY;
+            const borderRadius = 12 * scaleX;
 
-            ctx.drawImage(capturedCanvas, offsetX, offsetY, width, height);
+            // Draw semi-transparent white panel with rounded corners
+            ctx.beginPath();
+            ctx.roundRect(panelX, panelY, panelWidth, panelHeight, borderRadius);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+            ctx.fill();
+
+            // Capture and draw chart content
+            const chartCanvas = await html2canvas(elements.chartContainer, {
+                scale: 1920 / elements.chartContainer.offsetWidth,
+                backgroundColor: null,
+                useCORS: true,
+                allowTaint: true
+            });
+
+            ctx.drawImage(chartCanvas, panelX, panelY, panelWidth, panelHeight);
 
             const link = document.createElement('a');
             link.download = 'vrt-graphic.png';
             link.href = canvas.toDataURL('image/png');
             link.click();
-        }).catch(() => {
-            const link = document.createElement('a');
-            link.download = 'vrt-chart.png';
-            link.href = elements.chartCanvas.toDataURL('image/png');
-            link.click();
-        });
+        } catch (error) {
+            console.error('PNG export failed:', error);
+            alert('PNG export mislukt: ' + error.message);
+        }
     }
 }
 
