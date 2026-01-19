@@ -936,7 +936,7 @@ async function exportVideo(format) {
     const { fetchFile } = FFmpegUtil;
 
     try {
-        const fps = 60;
+        const fps = 25;
         const totalSeconds = 20;
         const totalFrames = fps * totalSeconds;
 
@@ -1008,7 +1008,7 @@ async function exportVideo(format) {
 
         if (format === 'mp4-audio' && hasAudio) {
             ffmpegCmd = [
-                '-framerate', '60',
+                '-framerate', '25',
                 '-i', 'frame%05d.png',
                 '-i', 'input_audio.mp4',
                 '-c:v', 'libx264',
@@ -1028,7 +1028,7 @@ async function exportVideo(format) {
         } else if (format === 'mp4-audio') {
             // MP4 with silent audio track
             ffmpegCmd = [
-                '-framerate', '60',
+                '-framerate', '25',
                 '-i', 'frame%05d.png',
                 '-f', 'lavfi',
                 '-i', 'anullsrc=r=48000:cl=stereo',
@@ -1048,7 +1048,7 @@ async function exportVideo(format) {
             ];
         } else if (format === 'mp4-noaudio') {
             ffmpegCmd = [
-                '-framerate', '60',
+                '-framerate', '25',
                 '-i', 'frame%05d.png',
                 '-c:v', 'libx264',
                 '-preset', 'medium',
@@ -1063,7 +1063,7 @@ async function exportVideo(format) {
         } else if (format === 'mov-alpha') {
             // MOV with alpha channel (ProRes 4444)
             ffmpegCmd = [
-                '-framerate', '60',
+                '-framerate', '25',
                 '-i', 'frame%05d.png',
                 '-c:v', 'png',
                 '-pix_fmt', 'rgba',
