@@ -638,11 +638,30 @@ function handleFileUpload(file) {
         return;
     }
 
-    const reader = new FileReader();
-    reader.onload = e => {
-        elements.previewBackground.style.backgroundImage = `url(${e.target.result})`;
-    };
-    reader.readAsDataURL(file);
+    const isVideo = file.type.startsWith('video/') ||
+                    ['.mp4', '.mov', '.avi', '.mxf'].some(ext => file.name.toLowerCase().endsWith(ext));
+
+    // Clear previous content
+    elements.previewBackground.style.backgroundImage = '';
+    elements.previewBackground.innerHTML = '';
+
+    if (isVideo) {
+        // Handle video files
+        const video = document.createElement('video');
+        video.src = URL.createObjectURL(file);
+        video.autoplay = true;
+        video.loop = true;
+        video.muted = true;
+        video.playsInline = true;
+        elements.previewBackground.appendChild(video);
+    } else {
+        // Handle image files
+        const reader = new FileReader();
+        reader.onload = e => {
+            elements.previewBackground.style.backgroundImage = `url(${e.target.result})`;
+        };
+        reader.readAsDataURL(file);
+    }
 }
 
 // ============================================

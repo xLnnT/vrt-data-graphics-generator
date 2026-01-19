@@ -457,6 +457,13 @@ body {
     inset: 0;
     background-size: cover;
     background-position: center;
+    z-index: 0;
+}
+
+.preview-background video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .chart-container {
@@ -613,6 +620,11 @@ body {
 .output-buttons {
     display: flex;
     flex-wrap: wrap;
+    gap: 8px;
+}
+
+.output-group {
+    display: flex;
     gap: 8px;
 }
 
