@@ -347,6 +347,21 @@ body {
     background: var(--text-secondary);
 }
 
+/* Logo Options */
+.logo-options {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+.logo-options .form-group {
+    margin-bottom: 10px;
+}
+
+.logo-options .checkbox-row {
+    margin-top: 8px;
+}
+
 /* Upload Area */
 .upload-panel {
     min-height: 180px;

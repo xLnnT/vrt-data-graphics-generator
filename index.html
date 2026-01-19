@@ -107,7 +107,7 @@
                 </section>
 
                 <!-- Text/Logos Section -->
-                <section class="panel panel-small">
+                <section class="panel" id="xAxisSection">
                     <div class="checkbox-row">
                         <span class="checkbox-label">tekst</span>
                         <input type="checkbox" id="showText" class="checkbox" checked>
@@ -115,6 +115,18 @@
                     <div class="checkbox-row">
                         <span class="checkbox-label">logo's</span>
                         <input type="checkbox" id="showLogos" class="checkbox">
+                    </div>
+                    <div class="logo-options" id="logoOptions" style="display: none;">
+                        <div class="form-group">
+                            <select id="partyRegion" class="select-input">
+                                <option value="vlaamse">Vlaamse partijen</option>
+                                <option value="waalse">Waalse partijen</option>
+                            </select>
+                        </div>
+                        <div class="checkbox-row">
+                            <span class="checkbox-label">mono</span>
+                            <input type="checkbox" id="monoLogos" class="checkbox">
+                        </div>
                     </div>
                 </section>
 

@@ -14,9 +14,12 @@ const elements = {
     secondaryColor: document.getElementById('secondaryColor'),
     highlightColor: document.getElementById('highlightColor'),
 
-    // Checkboxes
+    // X-axis display options
     showText: document.getElementById('showText'),
     showLogos: document.getElementById('showLogos'),
+    logoOptions: document.getElementById('logoOptions'),
+    partyRegion: document.getElementById('partyRegion'),
+    monoLogos: document.getElementById('monoLogos'),
 
     // Upload
     uploadArea: document.getElementById('uploadArea'),
@@ -76,6 +79,9 @@ let easingPoints = {
 
 // Highlighted bar indices (can select multiple)
 let highlightedBars = new Set([5]); // Default: index 5 (2016)
+
+// Logo images cache
+let logoImages = {};
 
 // Base dimensions for scaling (reference 1920x1080)
 const BASE_WIDTH = 1920;
@@ -144,6 +150,11 @@ function updateScaling() {
         };
 
         chart.update('none');
+
+        // Re-render logos if enabled
+        if (elements.showLogos.checked) {
+            setTimeout(() => renderXAxisLogos(), 50);
+        }
     }
 }
 
@@ -370,6 +381,11 @@ function updateChart() {
     }
 
     chart.update();
+
+    // Update logos if enabled
+    if (elements.showLogos.checked) {
+        setTimeout(() => renderXAxisLogos(), 50);
+    }
 }
 
 // Update title and subtitle
@@ -382,11 +398,141 @@ function updateTitles() {
     } else {
         elements.chartSource.textContent = '';
     }
+}
 
-    // Toggle text visibility
-    const showText = elements.showText.checked;
-    elements.chartTitle.style.opacity = showText ? 1 : 0;
-    elements.chartSubtitle.style.opacity = showText ? 1 : 0;
+// Handle mutual exclusivity between text and logos checkboxes
+function handleTextLogoToggle(e) {
+    const checkbox = e.target;
+
+    if (checkbox === elements.showText && checkbox.checked) {
+        // Text enabled - disable logos
+        elements.showLogos.checked = false;
+        elements.logoOptions.style.display = 'none';
+    } else if (checkbox === elements.showLogos && checkbox.checked) {
+        // Logos enabled - disable text
+        elements.showText.checked = false;
+        elements.logoOptions.style.display = 'block';
+    } else if (checkbox === elements.showLogos && !checkbox.checked) {
+        // Logos disabled - hide options
+        elements.logoOptions.style.display = 'none';
+    }
+
+    updateXAxisDisplay();
+}
+
+// Update X-axis display (text labels or logos)
+function updateXAxisDisplay() {
+    if (!chart) return;
+
+    const showLogos = elements.showLogos.checked;
+
+    if (showLogos) {
+        // Load and display logos
+        loadPartyLogos().then(() => {
+            chart.options.scales.x.ticks.display = false;
+            chart.update();
+            renderXAxisLogos();
+        });
+    } else {
+        // Show text labels
+        chart.options.scales.x.ticks.display = true;
+        chart.update();
+        removeXAxisLogos();
+    }
+}
+
+// Get logo path for a party name
+function getLogoPath(partyName) {
+    const region = elements.partyRegion.value === 'vlaamse' ? 'Vlaamse partijen' : 'Waalse partijen';
+    const colorMode = elements.monoLogos.checked ? 'mono' : 'kleur';
+    return `assets/Logo's politieke partijen/${region}/${colorMode}/${partyName}.png`;
+}
+
+// Load party logos based on X-axis labels
+async function loadPartyLogos() {
+    const labels = getXAxisLabels();
+    logoImages = {};
+
+    const loadPromises = labels.map(label => {
+        return new Promise((resolve) => {
+            const img = new Image();
+            const path = getLogoPath(label);
+            img.onload = () => {
+                logoImages[label] = img;
+                resolve();
+            };
+            img.onerror = () => {
+                // Logo not found, skip
+                resolve();
+            };
+            img.src = path;
+        });
+    });
+
+    await Promise.all(loadPromises);
+}
+
+// Render logos below X-axis
+function renderXAxisLogos() {
+    // Remove existing logos container
+    removeXAxisLogos();
+
+    if (!chart) return;
+
+    const labels = getXAxisLabels();
+    const chartArea = chart.chartArea;
+    const xScale = chart.scales.x;
+
+    // Create container for logos
+    const logosContainer = document.createElement('div');
+    logosContainer.id = 'xAxisLogos';
+    logosContainer.style.cssText = `
+        position: absolute;
+        left: ${chartArea.left}px;
+        right: ${chart.width - chartArea.right}px;
+        bottom: 10px;
+        height: ${30 * scaleFactor}px;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        pointer-events: none;
+    `;
+
+    labels.forEach((label, index) => {
+        const logoWrapper = document.createElement('div');
+        logoWrapper.style.cssText = `
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        `;
+
+        if (logoImages[label]) {
+            const logoEl = document.createElement('img');
+            logoEl.src = logoImages[label].src;
+            logoEl.style.cssText = `
+                max-height: ${28 * scaleFactor}px;
+                max-width: ${40 * scaleFactor}px;
+                object-fit: contain;
+            `;
+            logoWrapper.appendChild(logoEl);
+        }
+
+        logosContainer.appendChild(logoWrapper);
+    });
+
+    // Append to chart wrapper
+    const chartWrapper = elements.chartCanvas.parentElement;
+    chartWrapper.style.position = 'relative';
+    chartWrapper.appendChild(logosContainer);
+}
+
+// Remove X-axis logos
+function removeXAxisLogos() {
+    const existingLogos = document.getElementById('xAxisLogos');
+    if (existingLogos) {
+        existingLogos.remove();
+    }
 }
 
 // Reference panel width for bar scaling (default value)
@@ -443,9 +589,11 @@ function initEventListeners() {
     // Colors - setup color selectors
     initColorSelectors();
 
-    // Checkboxes
-    elements.showText.addEventListener('change', updateTitles);
-    elements.showLogos.addEventListener('change', updateTitles);
+    // Text/Logos mutual exclusivity
+    elements.showText.addEventListener('change', handleTextLogoToggle);
+    elements.showLogos.addEventListener('change', handleTextLogoToggle);
+    elements.partyRegion.addEventListener('change', updateXAxisDisplay);
+    elements.monoLogos.addEventListener('change', updateXAxisDisplay);
 
     // Upload
     elements.uploadArea.addEventListener('click', () => elements.fileInput.click());
@@ -744,4 +892,8 @@ window.addEventListener('resize', () => {
         chart.resize();
     }
     initEasingCanvas();
+    // Re-render logos if enabled
+    if (elements.showLogos.checked) {
+        setTimeout(() => renderXAxisLogos(), 100);
+    }
 });
