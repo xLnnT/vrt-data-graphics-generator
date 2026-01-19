@@ -75,6 +75,9 @@ let easingPoints = {
     cp2y: 0.75
 };
 
+// Highlighted bar indices (can select multiple)
+let highlightedBars = new Set([5]); // Default: index 5 (2016)
+
 // Base dimensions for scaling (reference 1920x1080)
 const BASE_WIDTH = 1920;
 const BASE_HEIGHT = 1080;
@@ -227,9 +230,27 @@ function initChart() {
             },
             animation: {
                 duration: 0
-            }
+            },
+            onClick: handleChartClick
         }
     });
+}
+
+// Handle click on chart bars to toggle highlight
+function handleChartClick(event, elements) {
+    if (elements.length > 0) {
+        const barIndex = elements[0].index;
+
+        // Toggle the bar in the highlighted set
+        if (highlightedBars.has(barIndex)) {
+            highlightedBars.delete(barIndex);
+        } else {
+            highlightedBars.add(barIndex);
+        }
+
+        // Update chart colors
+        updateChart();
+    }
 }
 
 // Create gradient colors for bars
@@ -239,8 +260,8 @@ function createGradientColors() {
     const highlight = elements.highlightColor.dataset.color;
 
     return labels.map((_, index) => {
-        // Highlight specific bar (e.g., 2016 - index 5)
-        if (index === 5) return highlight;
+        // Use highlight color for selected bars
+        if (highlightedBars.has(index)) return highlight;
         return primary;
     });
 }
