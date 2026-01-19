@@ -1149,8 +1149,8 @@ function animateChart() {
     const clipTop = (1 - panelProgress) * 100;
     elements.chartContainer.style.clipPath = `inset(${clipTop}% 0 0 0 round 12px)`;
 
-    // Animate title - delayed by 0.3 seconds, start 50px lower
-    const titleDelay = 0.3;
+    // Animate title - delayed by 0.2 seconds, start 50px lower
+    const titleDelay = 0.2;
     const titleInStart = graphInTime + titleDelay;
     const titleInEnd = titleInStart + PANEL_ANIMATION_DURATION;
     const titleOutStart = graphOutTime - titleDelay;
@@ -1175,8 +1175,8 @@ function animateChart() {
     const titleOffset = (1 - titleProgress) * 50;
     elements.chartTitle.style.transform = `translateY(${titleOffset}px)`;
 
-    // Animate subtitle - delayed by 0.5 seconds (0.3 + 0.2), start 50px lower
-    const subtitleDelay = 0.5;
+    // Animate subtitle - delayed by 0.4 seconds (0.2 + 0.2), start 50px lower
+    const subtitleDelay = 0.4;
     const subtitleInStart = graphInTime + subtitleDelay;
     const subtitleInEnd = subtitleInStart + PANEL_ANIMATION_DURATION;
     const subtitleOutStart = graphOutTime - subtitleDelay;
