@@ -426,7 +426,7 @@ function updateXAxisDisplay() {
     if (!chart) return;
 
     const showLogos = elements.showLogos.checked;
-    const logoPadding = 110 * scaleFactor;
+    const logoPadding = 225 * scaleFactor;
 
     if (showLogos) {
         // Load and display logos
