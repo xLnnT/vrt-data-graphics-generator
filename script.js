@@ -425,17 +425,26 @@ function updateXAxisDisplay() {
     if (!chart) return;
 
     const showLogos = elements.showLogos.checked;
+    const logoPadding = 60 * scaleFactor;
 
     if (showLogos) {
         // Load and display logos
         loadPartyLogos().then(() => {
             chart.options.scales.x.ticks.display = false;
+            // Add bottom padding for logos
+            chart.options.layout = chart.options.layout || {};
+            chart.options.layout.padding = chart.options.layout.padding || {};
+            chart.options.layout.padding.bottom = logoPadding;
             chart.update();
             renderXAxisLogos();
         });
     } else {
         // Show text labels
         chart.options.scales.x.ticks.display = true;
+        // Remove extra bottom padding
+        if (chart.options.layout && chart.options.layout.padding) {
+            chart.options.layout.padding.bottom = 0;
+        }
         chart.update();
         removeXAxisLogos();
     }
@@ -490,31 +499,38 @@ function renderXAxisLogos() {
     logosContainer.id = 'xAxisLogos';
     logosContainer.style.cssText = `
         position: absolute;
-        left: ${chartArea.left}px;
-        width: ${chartArea.right - chartArea.left}px;
+        left: 0;
+        right: 0;
         bottom: ${5 * scaleFactor}px;
-        height: ${35 * scaleFactor}px;
-        display: flex;
-        justify-content: space-around;
-        align-items: center;
+        height: ${55 * scaleFactor}px;
         pointer-events: none;
     `;
 
+    const logoSize = 45 * scaleFactor;
+
     labels.forEach((label, index) => {
+        // Get exact center position of this bar
+        const xPos = xScale.getPixelForValue(index);
+
         const logoWrapper = document.createElement('div');
         logoWrapper.style.cssText = `
-            flex: 1;
+            position: absolute;
+            left: ${xPos}px;
+            top: 0;
+            transform: translateX(-50%);
             display: flex;
             justify-content: center;
             align-items: center;
+            width: ${logoSize}px;
+            height: ${logoSize}px;
         `;
 
         if (logoImages[label]) {
             const logoEl = document.createElement('img');
             logoEl.src = logoImages[label].src;
             logoEl.style.cssText = `
-                max-height: ${30 * scaleFactor}px;
-                max-width: ${50 * scaleFactor}px;
+                max-height: ${logoSize}px;
+                max-width: ${logoSize}px;
                 object-fit: contain;
             `;
             logoWrapper.appendChild(logoEl);
@@ -526,6 +542,7 @@ function renderXAxisLogos() {
                 font-size: ${12 * scaleFactor}px;
                 color: #666;
                 font-family: 'Roobert VRT', sans-serif;
+                text-align: center;
             `;
             logoWrapper.appendChild(textEl);
         }
