@@ -529,20 +529,47 @@ function updateTitles() {
 // TEXT/LOGO TOGGLE
 // ============================================
 
-function handleTextLogoToggle(e) {
+async function handleTextLogoToggle(e) {
     const checkbox = e.target;
 
     if (checkbox === elements.showText && checkbox.checked) {
         elements.showLogos.checked = false;
         elements.logoOptions.style.display = 'none';
+        // Show text labels
+        if (state.chart) {
+            state.chart.options.scales.x.ticks.display = true;
+            if (state.chart.options.layout?.padding) {
+                state.chart.options.layout.padding.bottom = 0;
+            }
+            state.chart.update();
+        }
+        removeLogos();
     } else if (checkbox === elements.showLogos && checkbox.checked) {
         elements.showText.checked = false;
         elements.logoOptions.style.display = 'block';
+        // Force load and display logos
+        await loadLogos();
+        if (state.chart) {
+            const logoPadding = 225 * state.scaleFactor;
+            state.chart.options.scales.x.ticks.display = false;
+            state.chart.options.layout = state.chart.options.layout || {};
+            state.chart.options.layout.padding = state.chart.options.layout.padding || {};
+            state.chart.options.layout.padding.bottom = logoPadding;
+            state.chart.update();
+        }
+        updateLogoPositions();
     } else if (checkbox === elements.showLogos && !checkbox.checked) {
         elements.logoOptions.style.display = 'none';
+        // Hide logos, show text
+        if (state.chart) {
+            state.chart.options.scales.x.ticks.display = true;
+            if (state.chart.options.layout?.padding) {
+                state.chart.options.layout.padding.bottom = 0;
+            }
+            state.chart.update();
+        }
+        removeLogos();
     }
-
-    updateXAxisDisplay();
 }
 
 // ============================================
