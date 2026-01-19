@@ -896,7 +896,7 @@ async function initFFmpeg() {
     try {
         // Check if FFmpeg libraries are available
         if (typeof FFmpegWASM === 'undefined' || typeof FFmpegUtil === 'undefined') {
-            throw new Error('FFmpeg libraries not loaded. Please run from a local server (npx serve .)');
+            throw new Error('FFmpeg libraries not loaded');
         }
 
         const { FFmpeg } = FFmpegWASM;
@@ -915,19 +915,23 @@ async function initFFmpeg() {
             }
         });
 
-        // Load FFmpeg core with CORS-friendly approach
-        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+        showExportProgress('FFmpeg core laden...', 5);
+
+        // Load FFmpeg with all URLs as blobs to avoid CORS issues
+        const coreBaseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+        const ffmpegBaseURL = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/umd';
 
         await ffmpeg.load({
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
+            coreURL: await toBlobURL(`${coreBaseURL}/ffmpeg-core.js`, 'text/javascript'),
+            wasmURL: await toBlobURL(`${coreBaseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+            workerURL: await toBlobURL(`${ffmpegBaseURL}/814.ffmpeg.js`, 'text/javascript')
         });
 
         ffmpegLoaded = true;
         return true;
     } catch (error) {
         console.error('Failed to load FFmpeg:', error);
-        alert(`FFmpeg kon niet worden geladen: ${error.message}\n\nTip: Run the app from a local server using "npx serve ." in the project folder.`);
+        alert(`FFmpeg kon niet worden geladen: ${error.message}`);
         return false;
     }
 }
