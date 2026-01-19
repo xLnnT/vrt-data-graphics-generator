@@ -895,17 +895,43 @@ function hideExportProgress() {
 }
 
 // Capture single frame
-async function captureFrame() {
+async function captureFrame(withAlpha = false) {
     return new Promise((resolve) => {
         if (typeof html2canvas !== 'undefined') {
-            html2canvas(elements.previewArea, {
-                scale: 1,
-                width: 1920,
-                height: 1080,
+            // For alpha channel export, capture only the chart container with transparent background
+            const targetElement = withAlpha ? elements.chartContainer : elements.previewArea;
+
+            html2canvas(targetElement, {
+                scale: withAlpha ? 1920 / targetElement.offsetWidth : 1,
+                backgroundColor: withAlpha ? null : undefined, // null = transparent
                 useCORS: true,
                 allowTaint: true
             }).then(canvas => {
-                resolve(canvas);
+                if (withAlpha) {
+                    // Create full-size canvas and center the chart
+                    const fullCanvas = document.createElement('canvas');
+                    fullCanvas.width = 1920;
+                    fullCanvas.height = 1080;
+                    const ctx = fullCanvas.getContext('2d');
+
+                    // Keep transparent background
+                    ctx.clearRect(0, 0, 1920, 1080);
+
+                    // Calculate position to center the chart container
+                    const containerRect = elements.chartContainer.getBoundingClientRect();
+                    const previewRect = elements.previewArea.getBoundingClientRect();
+                    const scaleX = 1920 / previewRect.width;
+                    const scaleY = 1080 / previewRect.height;
+                    const offsetX = (containerRect.left - previewRect.left) * scaleX;
+                    const offsetY = (containerRect.top - previewRect.top) * scaleY;
+                    const width = containerRect.width * scaleX;
+                    const height = containerRect.height * scaleY;
+
+                    ctx.drawImage(canvas, offsetX, offsetY, width, height);
+                    resolve(fullCanvas);
+                } else {
+                    resolve(canvas);
+                }
             }).catch(() => {
                 resolve(elements.chartCanvas);
             });
@@ -949,6 +975,9 @@ async function exportVideo(format) {
             togglePlayback();
         }
 
+        // Check if we need alpha channel
+        const withAlpha = format === 'mov-alpha';
+
         // Capture all frames
         const frames = [];
         for (let i = 0; i < totalFrames; i++) {
@@ -959,7 +988,7 @@ async function exportVideo(format) {
             // Wait for render
             await new Promise(r => requestAnimationFrame(r));
 
-            const canvas = await captureFrame();
+            const canvas = await captureFrame(withAlpha);
             const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
             const arrayBuffer = await blob.arrayBuffer();
             frames.push(new Uint8Array(arrayBuffer));
