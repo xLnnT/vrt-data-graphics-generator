@@ -6,7 +6,8 @@ const elements = {
     // Chart type and settings
     chartType: document.getElementById('chartType'),
     position: document.getElementById('position'),
-    width: document.getElementById('width'),
+    panelWidth: document.getElementById('panelWidth'),
+    barWidth: document.getElementById('barWidth'),
 
     // Colors
     primaryColor: document.getElementById('primaryColor'),
@@ -87,6 +88,8 @@ function init() {
     initResizeObserver();
     updateChart();
     updateTitles();
+    updatePanelWidth();
+    updateBarWidth();
 }
 
 // Initialize resize observer for proportional scaling
@@ -310,6 +313,23 @@ function updateTitles() {
     elements.chartSubtitle.style.opacity = showText ? 1 : 0;
 }
 
+// Update panel width (glass container)
+function updatePanelWidth() {
+    const width = elements.panelWidth.value;
+    const container = elements.previewArea.querySelector('.chart-container');
+    const horizontalInset = (100 - width) / 2;
+    container.style.left = `${horizontalInset}%`;
+    container.style.right = `${horizontalInset}%`;
+}
+
+// Update bar width
+function updateBarWidth() {
+    if (!chart) return;
+    const width = elements.barWidth.value / 100;
+    chart.data.datasets[0].barPercentage = width;
+    chart.update('none');
+}
+
 // Handle file upload
 function handleFileUpload(file) {
     if (!file) return;
@@ -326,7 +346,8 @@ function initEventListeners() {
     // Chart settings
     elements.chartType.addEventListener('change', updateChart);
     elements.position.addEventListener('change', updateChart);
-    elements.width.addEventListener('input', updateChart);
+    elements.panelWidth.addEventListener('input', updatePanelWidth);
+    elements.barWidth.addEventListener('input', updateBarWidth);
 
     // Colors
     elements.primaryColor.addEventListener('input', updateChart);
