@@ -82,6 +82,7 @@ let highlightedBars = new Set([5]); // Default: index 5 (2016)
 
 // Logo images cache
 let logoImages = {};
+let lastLogoSettings = { region: '', mono: false };
 
 // Base dimensions for scaling (reference 1920x1080)
 const BASE_WIDTH = 1920;
@@ -456,17 +457,33 @@ function getLogoPath(partyName) {
     const colorMode = elements.monoLogos.checked ? 'mono' : 'kleur';
     // Encode the path properly for special characters
     const path = `assets/Logo's politieke partijen/${region}/${colorMode}/${partyName}.png`;
-    // Add cache-busting parameter to force reload when settings change
-    return encodeURI(path) + '?v=' + Date.now();
+    return encodeURI(path);
 }
 
 // Load party logos based on X-axis labels
 async function loadPartyLogos() {
     const labels = getXAxisLabels();
-    logoImages = {};
+    const currentRegion = elements.partyRegion.value;
+    const currentMono = elements.monoLogos.checked;
+
+    // Check if settings changed - if so, clear cache
+    const settingsChanged = lastLogoSettings.region !== currentRegion ||
+                           lastLogoSettings.mono !== currentMono;
+
+    if (settingsChanged) {
+        logoImages = {};
+        lastLogoSettings.region = currentRegion;
+        lastLogoSettings.mono = currentMono;
+    }
 
     const loadPromises = labels.map(label => {
         return new Promise((resolve) => {
+            // Skip if already loaded and settings haven't changed
+            if (logoImages[label] && !settingsChanged) {
+                resolve();
+                return;
+            }
+
             const img = new Image();
             const path = getLogoPath(label);
             img.onload = () => {
@@ -475,6 +492,7 @@ async function loadPartyLogos() {
             };
             img.onerror = () => {
                 // Logo not found, skip
+                logoImages[label] = null;
                 resolve();
             };
             img.src = path;
@@ -496,10 +514,10 @@ function renderXAxisLogos() {
     const xScale = chart.scales.x;
     const canvas = elements.chartCanvas;
 
-    // Get canvas position relative to its parent
-    const canvasRect = canvas.getBoundingClientRect();
-    const wrapperRect = canvas.parentElement.getBoundingClientRect();
-    const canvasOffsetLeft = canvasRect.left - wrapperRect.left;
+    const logoSize = 80 * scaleFactor;
+
+    // Position logos starting from below the chart area
+    const topPosition = chartArea.bottom + (10 * scaleFactor);
 
     // Create container for logos
     const logosContainer = document.createElement('div');
@@ -508,24 +526,22 @@ function renderXAxisLogos() {
         position: absolute;
         left: 0;
         right: 0;
-        bottom: 0;
-        height: ${110 * scaleFactor}px;
+        top: ${topPosition}px;
+        height: ${logoSize}px;
         pointer-events: none;
         z-index: 10;
     `;
 
-    const logoSize = 100 * scaleFactor;
-
     labels.forEach((label, index) => {
-        // Get exact center position of this bar relative to canvas
-        const xPos = xScale.getPixelForValue(index) + canvasOffsetLeft;
+        // Get exact center position of this bar
+        const xPos = xScale.getPixelForValue(index);
 
         const logoWrapper = document.createElement('div');
         logoWrapper.style.cssText = `
             position: absolute;
             left: ${xPos}px;
-            top: 50%;
-            transform: translate(-50%, -50%);
+            top: 0;
+            transform: translateX(-50%);
             display: flex;
             justify-content: center;
             align-items: center;
