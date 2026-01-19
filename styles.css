@@ -395,7 +395,7 @@ body {
 
 .chart-container {
     position: absolute;
-    inset: 40px 60px;
+    inset: 5% 6%;
     z-index: 1;
     display: flex;
     flex-direction: column;
@@ -403,23 +403,25 @@ body {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-radius: 12px;
-    padding: 30px 40px;
+    padding: 3% 5%;
+    container-type: size;
+    container-name: chart;
 }
 
 .chart-title {
-    font-size: 28px;
+    font-size: clamp(24px, 5cqw, 48px);
     font-weight: 600;
     color: #1a1a2e;
     text-align: center;
-    margin-bottom: 2px;
+    line-height: 1.1;
 }
 
 .chart-subtitle {
-    font-size: 16px;
+    font-size: clamp(14px, 3cqw, 28px);
     font-weight: 500;
     color: #5541F0;
     text-align: center;
-    margin-bottom: 16px;
+    margin-top: 0.5cqh;
 }
 
 .chart-wrapper {
@@ -427,19 +429,20 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 10px 20px;
+    padding: 2cqh 3cqw;
+    min-height: 0;
 }
 
 #chartCanvas {
-    max-width: 100%;
-    max-height: 100%;
+    width: 100%;
+    height: 100%;
 }
 
 .chart-source {
-    font-size: 13px;
+    font-size: clamp(10px, 2cqw, 16px);
     color: #666;
     text-align: center;
-    margin-top: 12px;
+    padding-top: 2cqh;
 }
 
 .preview-badge {
