@@ -80,6 +80,7 @@ function init() {
     initEventListeners();
     initEasingCanvas();
     updateChart();
+    updateTitles();
 }
 
 // Initialize Chart.js chart
@@ -96,9 +97,15 @@ function initChart() {
                 backgroundColor: createGradientColors(),
                 borderColor: 'transparent',
                 borderWidth: 0,
-                borderRadius: 4,
-                barPercentage: 0.7,
-                categoryPercentage: 0.8
+                borderRadius: {
+                    topLeft: 6,
+                    topRight: 6,
+                    bottomLeft: 0,
+                    bottomRight: 0
+                },
+                borderSkipped: false,
+                barPercentage: 0.5,
+                categoryPercentage: 0.7
             }]
         },
         options: {
@@ -121,26 +128,35 @@ function initChart() {
                     grid: {
                         display: false
                     },
+                    border: {
+                        display: false
+                    },
                     ticks: {
-                        color: '#333',
+                        color: '#666',
                         font: {
-                            size: 12,
+                            size: 13,
                             family: 'Roobert VRT'
-                        }
+                        },
+                        padding: 8
                     }
                 },
                 y: {
                     beginAtZero: true,
                     max: 60,
+                    border: {
+                        display: false
+                    },
                     grid: {
-                        color: '#E5E5E5'
+                        color: '#e0e0e0',
+                        lineWidth: 1
                     },
                     ticks: {
-                        color: '#333',
+                        color: '#666',
                         font: {
-                            size: 12,
+                            size: 13,
                             family: 'Roobert VRT'
                         },
+                        padding: 8,
                         callback: function(value) {
                             return value + '%';
                         }
@@ -158,13 +174,11 @@ function initChart() {
 function createGradientColors() {
     const labels = getXAxisLabels();
     const primary = elements.primaryColor.value;
-    const secondary = elements.secondaryColor.value;
     const highlight = elements.highlightColor.value;
 
     return labels.map((_, index) => {
-        // Highlight specific bar (e.g., 2016 which shows corona crisis)
-        if (index === 5) return highlight;
-        // Alternate between primary and similar shades
+        // Highlight specific bar (e.g., 2016 - index 5)
+        if (index === 5) return '#00BEAA';
         return primary;
     });
 }
@@ -231,7 +245,7 @@ function updateTitles() {
     elements.chartSubtitle.textContent = elements.subtitleInput.value || 'Subtitel';
 
     if (elements.sourceInput.value) {
-        elements.chartSource.textContent = 'Bron: ' + elements.sourceInput.value;
+        elements.chartSource.textContent = 'bron: ' + elements.sourceInput.value;
     } else {
         elements.chartSource.textContent = '';
     }
