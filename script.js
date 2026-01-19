@@ -821,14 +821,315 @@ function cubicBezier(t, x1, y1, x2, y2) {
 // EXPORT
 // ============================================
 
-function handleExport(format) {
+// FFmpeg instance
+let ffmpeg = null;
+let ffmpegLoaded = false;
+let isExporting = false;
+
+// Initialize FFmpeg
+async function initFFmpeg() {
+    if (ffmpegLoaded) return true;
+
+    try {
+        const { FFmpeg } = FFmpegWASM;
+        const { fetchFile, toBlobURL } = FFmpegUtil;
+
+        ffmpeg = new FFmpeg();
+
+        // Load FFmpeg core
+        await ffmpeg.load({
+            coreURL: await toBlobURL('https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js', 'text/javascript'),
+            wasmURL: await toBlobURL('https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm', 'application/wasm')
+        });
+
+        ffmpegLoaded = true;
+        return true;
+    } catch (error) {
+        console.error('Failed to load FFmpeg:', error);
+        alert('FFmpeg kon niet worden geladen. Video export is niet beschikbaar.');
+        return false;
+    }
+}
+
+// Show export progress
+function showExportProgress(message, percent = null) {
+    let progressEl = document.getElementById('exportProgress');
+
+    if (!progressEl) {
+        progressEl = document.createElement('div');
+        progressEl.id = 'exportProgress';
+        progressEl.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(3, 16, 55, 0.95);
+            color: white;
+            padding: 30px 50px;
+            border-radius: 12px;
+            z-index: 10000;
+            text-align: center;
+            font-family: 'Roobert VRT', sans-serif;
+            min-width: 300px;
+        `;
+        document.body.appendChild(progressEl);
+    }
+
+    let html = `<div style="margin-bottom: 15px; font-size: 16px;">${message}</div>`;
+    if (percent !== null) {
+        html += `
+            <div style="background: rgba(255,255,255,0.2); border-radius: 10px; height: 20px; overflow: hidden;">
+                <div style="background: #5541F0; height: 100%; width: ${percent}%; transition: width 0.3s;"></div>
+            </div>
+            <div style="margin-top: 10px; font-size: 14px;">${Math.round(percent)}%</div>
+        `;
+    }
+    progressEl.innerHTML = html;
+}
+
+function hideExportProgress() {
+    const progressEl = document.getElementById('exportProgress');
+    if (progressEl) {
+        progressEl.remove();
+    }
+}
+
+// Capture single frame
+async function captureFrame() {
+    return new Promise((resolve) => {
+        if (typeof html2canvas !== 'undefined') {
+            html2canvas(elements.previewArea, {
+                scale: 1,
+                width: 1920,
+                height: 1080,
+                useCORS: true,
+                allowTaint: true
+            }).then(canvas => {
+                resolve(canvas);
+            }).catch(() => {
+                resolve(elements.chartCanvas);
+            });
+        } else {
+            resolve(elements.chartCanvas);
+        }
+    });
+}
+
+// Export video with FFmpeg
+async function exportVideo(format) {
+    if (isExporting) {
+        alert('Export is al bezig. Even geduld.');
+        return;
+    }
+
+    isExporting = true;
+    showExportProgress('FFmpeg laden...', 0);
+
+    // Initialize FFmpeg
+    const loaded = await initFFmpeg();
+    if (!loaded) {
+        isExporting = false;
+        hideExportProgress();
+        return;
+    }
+
+    const { fetchFile } = FFmpegUtil;
+
+    try {
+        const fps = 60;
+        const totalSeconds = 20;
+        const totalFrames = fps * totalSeconds;
+
+        showExportProgress('Frames opnemen...', 0);
+
+        // Save current state
+        const savedFrame = state.currentFrame;
+        const wasPlaying = state.isPlaying;
+        if (wasPlaying) {
+            togglePlayback();
+        }
+
+        // Capture all frames
+        const frames = [];
+        for (let i = 0; i < totalFrames; i++) {
+            state.currentFrame = i;
+            updateTimelineDisplay();
+            animateChart();
+
+            // Wait for render
+            await new Promise(r => requestAnimationFrame(r));
+
+            const canvas = await captureFrame();
+            const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+            const arrayBuffer = await blob.arrayBuffer();
+            frames.push(new Uint8Array(arrayBuffer));
+
+            const percent = (i / totalFrames) * 50;
+            showExportProgress(`Frames opnemen... (${i + 1}/${totalFrames})`, percent);
+        }
+
+        // Restore state
+        state.currentFrame = savedFrame;
+        updateTimelineDisplay();
+        animateChart();
+
+        showExportProgress('Video encoderen...', 50);
+
+        // Write frames to FFmpeg
+        for (let i = 0; i < frames.length; i++) {
+            const filename = `frame${i.toString().padStart(5, '0')}.png`;
+            await ffmpeg.writeFile(filename, frames[i]);
+
+            const percent = 50 + (i / frames.length) * 20;
+            showExportProgress(`Frames schrijven... (${i + 1}/${frames.length})`, percent);
+        }
+
+        showExportProgress('Video encoderen met H.264...', 75);
+
+        // Get audio from background video if exists
+        const bgVideo = elements.previewBackground.querySelector('video');
+        let hasAudio = false;
+
+        if (bgVideo && format === 'mp4-audio') {
+            try {
+                const response = await fetch(bgVideo.src);
+                const videoBlob = await response.blob();
+                const videoData = await videoBlob.arrayBuffer();
+                await ffmpeg.writeFile('input_audio.mp4', new Uint8Array(videoData));
+                hasAudio = true;
+            } catch (e) {
+                console.log('No audio available from background video');
+            }
+        }
+
+        // FFmpeg encoding command
+        // H.264, VBR @ 15 Mbps, 48kHz 16-bit stereo audio
+        let ffmpegCmd;
+
+        if (format === 'mp4-audio' && hasAudio) {
+            ffmpegCmd = [
+                '-framerate', '60',
+                '-i', 'frame%05d.png',
+                '-i', 'input_audio.mp4',
+                '-c:v', 'libx264',
+                '-preset', 'medium',
+                '-b:v', '15M',
+                '-maxrate', '20M',
+                '-bufsize', '30M',
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'aac',
+                '-b:a', '256k',
+                '-ar', '48000',
+                '-ac', '2',
+                '-shortest',
+                '-y',
+                'output.mp4'
+            ];
+        } else if (format === 'mp4-audio') {
+            // MP4 with silent audio track
+            ffmpegCmd = [
+                '-framerate', '60',
+                '-i', 'frame%05d.png',
+                '-f', 'lavfi',
+                '-i', 'anullsrc=r=48000:cl=stereo',
+                '-c:v', 'libx264',
+                '-preset', 'medium',
+                '-b:v', '15M',
+                '-maxrate', '20M',
+                '-bufsize', '30M',
+                '-pix_fmt', 'yuv420p',
+                '-c:a', 'aac',
+                '-b:a', '256k',
+                '-ar', '48000',
+                '-ac', '2',
+                '-t', '20',
+                '-y',
+                'output.mp4'
+            ];
+        } else if (format === 'mp4-noaudio') {
+            ffmpegCmd = [
+                '-framerate', '60',
+                '-i', 'frame%05d.png',
+                '-c:v', 'libx264',
+                '-preset', 'medium',
+                '-b:v', '15M',
+                '-maxrate', '20M',
+                '-bufsize', '30M',
+                '-pix_fmt', 'yuv420p',
+                '-an',
+                '-y',
+                'output.mp4'
+            ];
+        } else if (format === 'mov-alpha') {
+            // MOV with alpha channel (ProRes 4444)
+            ffmpegCmd = [
+                '-framerate', '60',
+                '-i', 'frame%05d.png',
+                '-c:v', 'png',
+                '-pix_fmt', 'rgba',
+                '-y',
+                'output.mov'
+            ];
+        }
+
+        await ffmpeg.exec(ffmpegCmd);
+
+        showExportProgress('Bestand voorbereiden...', 95);
+
+        // Read output file
+        const outputExt = format === 'mov-alpha' ? 'mov' : 'mp4';
+        const data = await ffmpeg.readFile(`output.${outputExt}`);
+
+        // Create download
+        const blob = new Blob([data.buffer], {
+            type: format === 'mov-alpha' ? 'video/quicktime' : 'video/mp4'
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `vrt-graphic.${outputExt}`;
+        link.click();
+
+        // Cleanup
+        URL.revokeObjectURL(url);
+        for (let i = 0; i < frames.length; i++) {
+            await ffmpeg.deleteFile(`frame${i.toString().padStart(5, '0')}.png`);
+        }
+        await ffmpeg.deleteFile(`output.${outputExt}`);
+        if (hasAudio) {
+            await ffmpeg.deleteFile('input_audio.mp4');
+        }
+
+        hideExportProgress();
+
+        if (wasPlaying) {
+            togglePlayback();
+        }
+
+    } catch (error) {
+        console.error('Export failed:', error);
+        alert(`Export mislukt: ${error.message}`);
+        hideExportProgress();
+    }
+
+    isExporting = false;
+}
+
+// Main export handler
+async function handleExport(format) {
+    // Video formats use FFmpeg
+    if (['mp4-audio', 'mp4-noaudio', 'mov-alpha'].includes(format)) {
+        await exportVideo(format);
+        return;
+    }
+
+    // Image formats
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     canvas.width = 1920;
     canvas.height = 1080;
 
     if (typeof html2canvas === 'undefined') {
-        // Fallback
         const link = document.createElement('a');
         link.download = 'vrt-chart.png';
         link.href = elements.chartCanvas.toDataURL('image/png');
@@ -850,7 +1151,6 @@ function handleExport(format) {
                 extension = 'jpg';
                 break;
             default:
-                alert(`Video export (${format}) requires server-side processing.`);
                 return;
         }
 
