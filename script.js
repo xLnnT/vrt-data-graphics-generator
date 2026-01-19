@@ -854,8 +854,16 @@ function initEventListeners() {
     elements.subtitleInput.addEventListener('input', debouncedTitleUpdate);
     elements.sourceInput.addEventListener('input', debouncedTitleUpdate);
 
-    // Axis inputs (debounced)
-    elements.xAxisInput.addEventListener('input', debouncedAxisUpdate);
+    // Axis inputs
+    // X-axis: immediate update when logos enabled (to load logos as you type), debounced otherwise
+    elements.xAxisInput.addEventListener('input', () => {
+        if (elements.showLogos.checked) {
+            updateChart();
+            updateXAxisDisplay();
+        } else {
+            debouncedAxisUpdate();
+        }
+    });
     elements.yAxisInput.addEventListener('input', debouncedChartUpdate);
 
     // Timeline
