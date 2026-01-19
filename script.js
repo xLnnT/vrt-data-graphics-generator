@@ -987,9 +987,16 @@ function animateChart() {
     elements.chartContainer.style.clipPath = `inset(${clipTop}% 0 0 0 round 12px)`;
 
     // Bar animation (uses user-defined easing from the curve editor)
+    // Bars animate 1 second after graphInTime
+    const barAnimationDelay = 1; // 1 second after graphInTime
+    const barInStart = graphInTime + barAnimationDelay;
+    const barAnimationDuration = 1; // 1 second for bar animation
+
     let barProgress = 0;
-    if (currentTime < graphInTime) {
-        barProgress = currentTime / graphInTime;
+    if (currentTime < barInStart) {
+        barProgress = 0;
+    } else if (currentTime < barInStart + barAnimationDuration) {
+        barProgress = (currentTime - barInStart) / barAnimationDuration;
     } else if (currentTime < graphOutTime) {
         barProgress = 1;
     } else {
