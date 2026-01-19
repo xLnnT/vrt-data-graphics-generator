@@ -715,6 +715,16 @@ body {
     padding-top: 16px;
 }
 
+.credits a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.credits a:hover {
+    color: var(--text-primary);
+}
+
 /* Responsive */
 @media (max-width: 1400px) {
     .main-content {
