@@ -605,6 +605,16 @@ function updatePanelWidth() {
 
     // Recalculate bar width to maintain constant visual size
     updateBarWidth();
+
+    // Re-render logos if enabled (after chart updates)
+    if (elements.showLogos.checked) {
+        setTimeout(() => {
+            if (chart) {
+                chart.update();
+                renderXAxisLogos();
+            }
+        }, 50);
+    }
 }
 
 // Update bar width (compensated for panel width)
