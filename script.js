@@ -626,8 +626,17 @@ function initColorSelectors() {
 // FILE UPLOAD
 // ============================================
 
+// Maximum file size: 100MB
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
+
 function handleFileUpload(file) {
     if (!file) return;
+
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+        alert(`Bestand is te groot. Maximum grootte is 100MB. Uw bestand is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`);
+        return;
+    }
 
     const reader = new FileReader();
     reader.onload = e => {
