@@ -1149,12 +1149,34 @@ function animateChart() {
     const clipTop = (1 - panelProgress) * 100;
     elements.chartContainer.style.clipPath = `inset(${clipTop}% 0 0 0 round 12px)`;
 
-    // Animate title - start 10px lower and animate up with same easing
-    const titleOffset = (1 - panelProgress) * 10;
+    // Animate title - delayed by 0.3 seconds, start 50px lower
+    const titleDelay = 0.3;
+    const titleInStart = graphInTime + titleDelay;
+    const titleInEnd = titleInStart + PANEL_ANIMATION_DURATION;
+    const titleOutStart = graphOutTime - titleDelay;
+    const titleOutEnd = titleOutStart + PANEL_ANIMATION_DURATION;
+
+    let titleProgress = 0;
+    if (currentTime < titleInStart) {
+        titleProgress = 0;
+    } else if (currentTime < titleInEnd) {
+        const t = (currentTime - titleInStart) / PANEL_ANIMATION_DURATION;
+        titleProgress = cubicBezier(t, PANEL_EASING.cp1x, PANEL_EASING.cp1y, PANEL_EASING.cp2x, PANEL_EASING.cp2y);
+    } else if (currentTime < titleOutStart) {
+        titleProgress = 1;
+    } else if (currentTime < titleOutEnd) {
+        const t = (currentTime - titleOutStart) / PANEL_ANIMATION_DURATION;
+        titleProgress = 1 - cubicBezier(t, PANEL_EASING.cp1x, PANEL_EASING.cp1y, PANEL_EASING.cp2x, PANEL_EASING.cp2y);
+    } else {
+        titleProgress = 0;
+    }
+    titleProgress = Math.max(0, Math.min(1, titleProgress));
+
+    const titleOffset = (1 - titleProgress) * 50;
     elements.chartTitle.style.transform = `translateY(${titleOffset}px)`;
 
-    // Animate subtitle - delayed by 0.2 seconds
-    const subtitleDelay = 0.2;
+    // Animate subtitle - delayed by 0.5 seconds (0.3 + 0.2), start 50px lower
+    const subtitleDelay = 0.5;
     const subtitleInStart = graphInTime + subtitleDelay;
     const subtitleInEnd = subtitleInStart + PANEL_ANIMATION_DURATION;
     const subtitleOutStart = graphOutTime - subtitleDelay;
@@ -1176,7 +1198,7 @@ function animateChart() {
     }
     subtitleProgress = Math.max(0, Math.min(1, subtitleProgress));
 
-    const subtitleOffset = (1 - subtitleProgress) * 10;
+    const subtitleOffset = (1 - subtitleProgress) * 50;
     elements.chartSubtitle.style.transform = `translateY(${subtitleOffset}px)`;
 
     // Bar animation (uses user-defined easing from the curve editor)
