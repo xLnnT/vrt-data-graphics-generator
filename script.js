@@ -563,10 +563,10 @@ async function handleTextLogoToggle(e) {
             state.chart.options.layout.padding.bottom = logoPadding;
             state.chart.update();
 
-            // Render logos after chart update
-            requestAnimationFrame(() => {
+            // Wait for chart to fully render, then position logos
+            setTimeout(() => {
                 updateLogoPositions();
-            });
+            }, 100);
         }
     } else if (isLogosCheckbox && !checkbox.checked) {
         // Logos disabled - show text labels
