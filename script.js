@@ -49,8 +49,7 @@ const state = {
     highlightedBars: new Set([5]),
     logoImages: {},
     logoSettings: { region: '', mono: false, labels: [] },
-    easingPoints: { cp1x: 0.90, cp1y: 0.00, cp2x: 0.30, cp2y: 1.00 },
-    pendingUpdates: new Set()
+    easingPoints: { cp1x: 0.90, cp1y: 0.00, cp2x: 0.30, cp2y: 1.00 }
 };
 
 // ============================================
@@ -1159,8 +1158,6 @@ async function exportVideo(format) {
         hideExportProgress();
         return;
     }
-
-    const { fetchFile } = FFmpegUtil;
 
     try {
         const fps = 25;
