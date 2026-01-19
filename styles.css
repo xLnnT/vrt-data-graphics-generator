@@ -395,15 +395,17 @@ body {
 
 .chart-container {
     position: absolute;
-    inset: 5% 6%;
+    top: 5%;
+    bottom: 5%;
+    left: 6%;
+    right: 6%;
     z-index: 1;
     display: flex;
     flex-direction: column;
     background: rgba(255, 255, 255, 0.75);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-radius: 1.2%;
-    padding: 2.5% 4%;
+    border-radius: 12px;
 }
 
 .chart-title {
@@ -412,6 +414,8 @@ body {
     color: #1a1a2e;
     text-align: center;
     line-height: 1.1;
+    padding: var(--padding-v, 20px) var(--padding-h, 30px) 0;
+    flex-shrink: 0;
 }
 
 .chart-subtitle {
@@ -419,7 +423,9 @@ body {
     font-weight: 500;
     color: #5541F0;
     text-align: center;
-    margin-top: 0.3%;
+    margin-top: var(--spacing-sm, 4px);
+    padding: 0 var(--padding-h, 30px);
+    flex-shrink: 0;
 }
 
 .chart-wrapper {
@@ -427,7 +433,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 2% 2%;
+    padding: var(--padding-v, 20px) var(--padding-h, 30px);
     min-height: 0;
 }
 
@@ -440,7 +446,8 @@ body {
     font-size: var(--source-size, 14px);
     color: #666;
     text-align: center;
-    margin-top: 1.5%;
+    padding: 0 var(--padding-h, 30px) var(--padding-v, 20px);
+    flex-shrink: 0;
 }
 
 .preview-badge {

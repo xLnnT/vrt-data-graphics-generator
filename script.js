@@ -119,6 +119,11 @@ function updateScaling() {
     container.style.setProperty('--subtitle-size', `${Math.round(24 * scaleFactor)}px`);
     container.style.setProperty('--source-size', `${Math.round(16 * scaleFactor)}px`);
 
+    // Scale padding and spacing (based on preview area, not container)
+    container.style.setProperty('--padding-v', `${Math.round(25 * scaleFactor)}px`);
+    container.style.setProperty('--padding-h', `${Math.round(35 * scaleFactor)}px`);
+    container.style.setProperty('--spacing-sm', `${Math.round(6 * scaleFactor)}px`);
+
     // Update chart scaling
     if (chart) {
         const tickSize = Math.round(14 * scaleFactor);
