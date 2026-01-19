@@ -240,7 +240,7 @@ function initChart() {
                     beginAtZero: true,
                     max: 60,
                     border: { display: false },
-                    grid: { color: '#e0e0e0', lineWidth: 1 },
+                    grid: { color: '#c0c0c0', lineWidth: 1 },
                     ticks: {
                         color: '#666',
                         font: { size: 13, family: 'Roobert VRT' },
