@@ -828,8 +828,18 @@ function initEventListeners() {
     // Text/Logos toggle (immediate)
     elements.showText.addEventListener('change', handleTextLogoToggle);
     elements.showLogos.addEventListener('change', handleTextLogoToggle);
-    elements.partyRegion.addEventListener('change', () => updateXAxisDisplay());
-    elements.monoLogos.addEventListener('change', () => updateXAxisDisplay());
+
+    // Region/Mono changes - force logo reload
+    elements.partyRegion.addEventListener('change', async () => {
+        await loadLogos();
+        state.chart?.update();
+        updateLogoPositions();
+    });
+    elements.monoLogos.addEventListener('change', async () => {
+        await loadLogos();
+        state.chart?.update();
+        updateLogoPositions();
+    });
 
     // Upload
     elements.uploadArea.addEventListener('click', () => elements.fileInput.click());
