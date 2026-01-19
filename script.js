@@ -817,8 +817,8 @@ function drawEasingCurve() {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Control point lines
-    ctx.strokeStyle = '#5541F088';
+    // Control point lines (beziers)
+    ctx.strokeStyle = '#C9C2F8';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, height);
@@ -841,17 +841,8 @@ function drawEasingCurve() {
     );
     ctx.stroke();
 
-    // Start and end points
-    ctx.fillStyle = '#FFFFFF';
-    ctx.beginPath();
-    ctx.arc(0, height, 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(width, 0, 4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Control points (draggable)
-    ctx.fillStyle = '#5541F0';
+    // Control points (draggable) - no start/end dots
+    ctx.fillStyle = '#C9C2F8';
     ctx.strokeStyle = '#FFFFFF';
     ctx.lineWidth = 2;
 
