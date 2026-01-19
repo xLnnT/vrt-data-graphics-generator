@@ -329,15 +329,18 @@ function initColorSelectors() {
 }
 
 // Get X axis labels from input
+// Maximum number of bars allowed
+const MAX_BARS = 30;
+
 function getXAxisLabels() {
     const input = elements.xAxisInput.value;
-    return input.split(',').map(s => s.trim());
+    return input.split(',').map(s => s.trim()).slice(0, MAX_BARS);
 }
 
 // Get Y axis data from input
 function getYAxisData() {
     const input = elements.yAxisInput.value;
-    return input.split(',').map(s => parseFloat(s.trim()) || 0);
+    return input.split(',').map(s => parseFloat(s.trim()) || 0).slice(0, MAX_BARS);
 }
 
 // Update chart based on current settings
