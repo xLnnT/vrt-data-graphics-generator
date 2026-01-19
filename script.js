@@ -987,8 +987,8 @@ function animateChart() {
     elements.chartContainer.style.clipPath = `inset(${clipTop}% 0 0 0 round 12px)`;
 
     // Bar animation (uses user-defined easing from the curve editor)
-    // Bars animate 1 second after graphInTime
-    const barAnimationDelay = 1; // 1 second after graphInTime
+    // Bars animate 0.5 seconds after graphInTime
+    const barAnimationDelay = 0.5; // 0.5 seconds after graphInTime
     const barInStart = graphInTime + barAnimationDelay;
     const barAnimationDuration = 1; // 1 second for bar animation
 
