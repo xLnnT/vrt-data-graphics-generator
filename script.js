@@ -943,7 +943,7 @@ function updateTimelineDisplay() {
 
 // Panel swipe animation easing (fixed)
 const PANEL_EASING = { cp1x: 0.00, cp1y: 0.90, cp2x: 0.30, cp2y: 1.00 };
-const PANEL_ANIMATION_DURATION = 1; // 1 second
+const PANEL_ANIMATION_DURATION = 0.5; // 0.5 seconds
 
 function animateChart() {
     if (!state.chart) return;
@@ -981,10 +981,10 @@ function animateChart() {
 
     panelProgress = Math.max(0, Math.min(1, panelProgress));
 
-    // Apply clip-path to reveal panel from bottom
-    // inset(bottom right top left) - we animate the bottom inset from 100% to 0%
-    const clipBottom = (1 - panelProgress) * 100;
-    elements.chartContainer.style.clipPath = `inset(0 0 ${clipBottom}% 0 round 12px)`;
+    // Apply clip-path to reveal panel from bottom (grows upward)
+    // inset(top right bottom left) - we animate the top inset from 100% to 0%
+    const clipTop = (1 - panelProgress) * 100;
+    elements.chartContainer.style.clipPath = `inset(${clipTop}% 0 0 0 round 12px)`;
 
     // Bar animation (uses user-defined easing from the curve editor)
     let barProgress = 0;
