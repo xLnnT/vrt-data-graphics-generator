@@ -313,6 +313,9 @@ function updateTitles() {
     elements.chartSubtitle.style.opacity = showText ? 1 : 0;
 }
 
+// Reference panel width for bar scaling (default value)
+const BASE_PANEL_WIDTH = 88;
+
 // Update panel width (glass container)
 function updatePanelWidth() {
     const width = elements.panelWidth.value;
@@ -320,13 +323,25 @@ function updatePanelWidth() {
     const horizontalInset = (100 - width) / 2;
     container.style.left = `${horizontalInset}%`;
     container.style.right = `${horizontalInset}%`;
+
+    // Recalculate bar width to maintain constant visual size
+    updateBarWidth();
 }
 
-// Update bar width
+// Update bar width (compensated for panel width)
 function updateBarWidth() {
     if (!chart) return;
-    const width = elements.barWidth.value / 100;
-    chart.data.datasets[0].barPercentage = width;
+    const barWidthSetting = elements.barWidth.value / 100;
+    const panelWidth = elements.panelWidth.value;
+
+    // Compensate bar percentage based on panel width
+    // When panel is narrower, increase bar percentage to maintain visual width
+    const compensatedBarWidth = barWidthSetting * (BASE_PANEL_WIDTH / panelWidth);
+
+    // Clamp to valid range (0-1)
+    const finalBarWidth = Math.min(1, Math.max(0.1, compensatedBarWidth));
+
+    chart.data.datasets[0].barPercentage = finalBarWidth;
     chart.update('none');
 }
 
