@@ -407,10 +407,11 @@ body {
 }
 
 .number-input {
-    width: 40px;
-    padding: 4px 8px;
-    background: transparent;
-    border: none;
+    width: 60px;
+    padding: 8px 12px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
     color: var(--text-primary);
     font-size: 15px;
     font-family: var(--font-family);
