@@ -1149,12 +1149,10 @@ function animateChart() {
     const clipTop = (1 - panelProgress) * 100;
     elements.chartContainer.style.clipPath = `inset(${clipTop}% 0 0 0 round 12px)`;
 
-    // Animate title - delayed by 0.2 seconds, start 50px lower
+    // Animate title - delayed by 0.2 seconds, start 50px lower (in animation only)
     const titleDelay = 0.2;
     const titleInStart = graphInTime + titleDelay;
     const titleInEnd = titleInStart + PANEL_ANIMATION_DURATION;
-    const titleOutStart = graphOutTime - titleDelay;
-    const titleOutEnd = titleOutStart + PANEL_ANIMATION_DURATION;
 
     let titleProgress = 0;
     if (currentTime < titleInStart) {
@@ -1162,25 +1160,18 @@ function animateChart() {
     } else if (currentTime < titleInEnd) {
         const t = (currentTime - titleInStart) / PANEL_ANIMATION_DURATION;
         titleProgress = cubicBezier(t, PANEL_EASING.cp1x, PANEL_EASING.cp1y, PANEL_EASING.cp2x, PANEL_EASING.cp2y);
-    } else if (currentTime < titleOutStart) {
-        titleProgress = 1;
-    } else if (currentTime < titleOutEnd) {
-        const t = (currentTime - titleOutStart) / PANEL_ANIMATION_DURATION;
-        titleProgress = 1 - cubicBezier(t, PANEL_EASING.cp1x, PANEL_EASING.cp1y, PANEL_EASING.cp2x, PANEL_EASING.cp2y);
     } else {
-        titleProgress = 0;
+        titleProgress = 1;
     }
     titleProgress = Math.max(0, Math.min(1, titleProgress));
 
     const titleOffset = (1 - titleProgress) * 50;
     elements.chartTitle.style.transform = `translateY(${titleOffset}px)`;
 
-    // Animate subtitle - delayed by 0.4 seconds (0.2 + 0.2), start 50px lower
+    // Animate subtitle - delayed by 0.4 seconds (0.2 + 0.2), start 50px lower (in animation only)
     const subtitleDelay = 0.4;
     const subtitleInStart = graphInTime + subtitleDelay;
     const subtitleInEnd = subtitleInStart + PANEL_ANIMATION_DURATION;
-    const subtitleOutStart = graphOutTime - subtitleDelay;
-    const subtitleOutEnd = subtitleOutStart + PANEL_ANIMATION_DURATION;
 
     let subtitleProgress = 0;
     if (currentTime < subtitleInStart) {
@@ -1188,13 +1179,8 @@ function animateChart() {
     } else if (currentTime < subtitleInEnd) {
         const t = (currentTime - subtitleInStart) / PANEL_ANIMATION_DURATION;
         subtitleProgress = cubicBezier(t, PANEL_EASING.cp1x, PANEL_EASING.cp1y, PANEL_EASING.cp2x, PANEL_EASING.cp2y);
-    } else if (currentTime < subtitleOutStart) {
-        subtitleProgress = 1;
-    } else if (currentTime < subtitleOutEnd) {
-        const t = (currentTime - subtitleOutStart) / PANEL_ANIMATION_DURATION;
-        subtitleProgress = 1 - cubicBezier(t, PANEL_EASING.cp1x, PANEL_EASING.cp1y, PANEL_EASING.cp2x, PANEL_EASING.cp2y);
     } else {
-        subtitleProgress = 0;
+        subtitleProgress = 1;
     }
     subtitleProgress = Math.max(0, Math.min(1, subtitleProgress));
 
