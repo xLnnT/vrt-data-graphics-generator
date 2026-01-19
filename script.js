@@ -33,7 +33,6 @@ const elements = {
     chartTitle: document.getElementById('chartTitle'),
     chartSubtitle: document.getElementById('chartSubtitle'),
     chartSource: document.getElementById('chartSource'),
-    previewBadge: document.getElementById('previewBadge'),
 
     // Inputs
     titleInput: document.getElementById('titleInput'),

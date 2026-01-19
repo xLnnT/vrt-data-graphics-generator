@@ -414,9 +414,10 @@ body {
 /* Preview Container */
 .preview-container {
     display: flex;
-    flex-direction: column;
-    justify-content: flex-start;
-    align-items: center;
+    flex-direction: row;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 12px;
     height: 100%;
 }
 
@@ -494,19 +495,6 @@ body {
     flex-shrink: 0;
 }
 
-.preview-badge {
-    position: absolute;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--accent-teal);
-    color: white;
-    padding: 8px 20px;
-    border-radius: 4px;
-    font-size: 14px;
-    font-weight: 500;
-    display: none;
-}
 
 /* Right Sidebar */
 .input-row {
@@ -710,9 +698,8 @@ body {
     font-size: 10px;
     color: var(--text-secondary);
     line-height: 1.4;
-    margin-top: 8px;
-    align-self: flex-start;
-    width: 100%;
+    align-self: flex-end;
+    padding-bottom: 4px;
 }
 
 /* Responsive */
