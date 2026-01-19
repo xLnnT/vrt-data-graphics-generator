@@ -656,12 +656,11 @@ body {
 
 /* Credits */
 .credits {
-    position: fixed;
-    bottom: 100px;
-    left: 20px;
     font-size: 10px;
     color: var(--text-secondary);
     line-height: 1.4;
+    margin-top: auto;
+    padding-top: 16px;
 }
 
 /* Responsive */
@@ -700,7 +699,6 @@ body {
     }
 
     .credits {
-        position: static;
         text-align: center;
         margin-top: 20px;
     }
