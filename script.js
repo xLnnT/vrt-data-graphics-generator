@@ -74,13 +74,67 @@ let easingPoints = {
     cp2y: 0.75
 };
 
+// Base dimensions for scaling (reference 1920x1080)
+const BASE_WIDTH = 1920;
+const BASE_HEIGHT = 1080;
+let scaleFactor = 1;
+
 // Initialize the application
 function init() {
     initChart();
     initEventListeners();
     initEasingCanvas();
+    initResizeObserver();
     updateChart();
     updateTitles();
+}
+
+// Initialize resize observer for proportional scaling
+function initResizeObserver() {
+    const resizeObserver = new ResizeObserver(entries => {
+        for (let entry of entries) {
+            const { width, height } = entry.contentRect;
+            scaleFactor = Math.min(width / BASE_WIDTH, height / BASE_HEIGHT);
+            updateScaling();
+        }
+    });
+
+    resizeObserver.observe(elements.previewArea);
+
+    // Initial scaling
+    const rect = elements.previewArea.getBoundingClientRect();
+    scaleFactor = Math.min(rect.width / BASE_WIDTH, rect.height / BASE_HEIGHT);
+    updateScaling();
+}
+
+// Update all scaled elements
+function updateScaling() {
+    const container = elements.previewArea.querySelector('.chart-container');
+
+    // Scale text sizes
+    container.style.setProperty('--title-size', `${Math.round(42 * scaleFactor)}px`);
+    container.style.setProperty('--subtitle-size', `${Math.round(24 * scaleFactor)}px`);
+    container.style.setProperty('--source-size', `${Math.round(16 * scaleFactor)}px`);
+
+    // Update chart scaling
+    if (chart) {
+        const tickSize = Math.round(14 * scaleFactor);
+        const barRadius = Math.round(8 * scaleFactor);
+
+        chart.options.scales.x.ticks.font.size = tickSize;
+        chart.options.scales.y.ticks.font.size = tickSize;
+        chart.options.scales.x.ticks.padding = Math.round(10 * scaleFactor);
+        chart.options.scales.y.ticks.padding = Math.round(10 * scaleFactor);
+
+        chart.data.datasets[0].borderRadius = {
+            topLeft: barRadius,
+            topRight: barRadius,
+            bottomLeft: 0,
+            bottomRight: 0
+        };
+
+        chart.update('none');
+    }
 }
 
 // Initialize Chart.js chart

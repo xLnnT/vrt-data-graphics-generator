@@ -381,9 +381,9 @@ body {
     width: 100%;
     aspect-ratio: 16/9;
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    border-radius: 8px;
     overflow: hidden;
     border: 2px solid var(--border-color);
+    border-radius: 0.5%;
 }
 
 .preview-background {
@@ -402,14 +402,12 @@ body {
     background: rgba(255, 255, 255, 0.75);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-radius: 12px;
-    padding: 3% 5%;
-    container-type: size;
-    container-name: chart;
+    border-radius: 1.2%;
+    padding: 2.5% 4%;
 }
 
 .chart-title {
-    font-size: clamp(24px, 5cqw, 48px);
+    font-size: var(--title-size, 36px);
     font-weight: 600;
     color: #1a1a2e;
     text-align: center;
@@ -417,11 +415,11 @@ body {
 }
 
 .chart-subtitle {
-    font-size: clamp(14px, 3cqw, 28px);
+    font-size: var(--subtitle-size, 20px);
     font-weight: 500;
     color: #5541F0;
     text-align: center;
-    margin-top: 0.5cqh;
+    margin-top: 0.3%;
 }
 
 .chart-wrapper {
@@ -429,7 +427,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 2cqh 3cqw;
+    padding: 2% 2%;
     min-height: 0;
 }
 
@@ -439,10 +437,10 @@ body {
 }
 
 .chart-source {
-    font-size: clamp(10px, 2cqw, 16px);
+    font-size: var(--source-size, 14px);
     color: #666;
     text-align: center;
-    padding-top: 2cqh;
+    margin-top: 1.5%;
 }
 
 .preview-badge {
