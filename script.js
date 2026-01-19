@@ -445,7 +445,9 @@ function updateXAxisDisplay() {
 function getLogoPath(partyName) {
     const region = elements.partyRegion.value === 'vlaamse' ? 'Vlaamse partijen' : 'Waalse partijen';
     const colorMode = elements.monoLogos.checked ? 'mono' : 'kleur';
-    return `assets/Logo's politieke partijen/${region}/${colorMode}/${partyName}.png`;
+    // Encode the path properly for special characters
+    const path = `assets/Logo's politieke partijen/${region}/${colorMode}/${partyName}.png`;
+    return encodeURI(path);
 }
 
 // Load party logos based on X-axis labels
@@ -489,9 +491,9 @@ function renderXAxisLogos() {
     logosContainer.style.cssText = `
         position: absolute;
         left: ${chartArea.left}px;
-        right: ${chart.width - chartArea.right}px;
-        bottom: 10px;
-        height: ${30 * scaleFactor}px;
+        width: ${chartArea.right - chartArea.left}px;
+        bottom: ${5 * scaleFactor}px;
+        height: ${35 * scaleFactor}px;
         display: flex;
         justify-content: space-around;
         align-items: center;
@@ -511,11 +513,21 @@ function renderXAxisLogos() {
             const logoEl = document.createElement('img');
             logoEl.src = logoImages[label].src;
             logoEl.style.cssText = `
-                max-height: ${28 * scaleFactor}px;
-                max-width: ${40 * scaleFactor}px;
+                max-height: ${30 * scaleFactor}px;
+                max-width: ${50 * scaleFactor}px;
                 object-fit: contain;
             `;
             logoWrapper.appendChild(logoEl);
+        } else {
+            // Show label text as fallback if logo not found
+            const textEl = document.createElement('span');
+            textEl.textContent = label;
+            textEl.style.cssText = `
+                font-size: ${12 * scaleFactor}px;
+                color: #666;
+                font-family: 'Roobert VRT', sans-serif;
+            `;
+            logoWrapper.appendChild(textEl);
         }
 
         logosContainer.appendChild(logoWrapper);
