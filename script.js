@@ -1272,13 +1272,9 @@ function hideExportProgress() {
     }
 }
 
-// Capture single frame with proper glass effect
+// Capture single frame for video export (without html2canvas to avoid tainted canvas)
 async function captureFrame(withAlpha = false) {
     try {
-        if (typeof html2canvas === 'undefined') {
-            return elements.chartCanvas;
-        }
-
         const containerRect = elements.chartContainer.getBoundingClientRect();
         const previewRect = elements.previewArea.getBoundingClientRect();
         const scaleX = 1920 / previewRect.width;
@@ -1289,51 +1285,91 @@ async function captureFrame(withAlpha = false) {
         const panelHeight = containerRect.height * scaleY;
         const borderRadius = 12 * scaleX;
 
-        if (withAlpha) {
-            // MOV + alpha: transparent background with glass panel
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = 1920;
-            canvas.height = 1080;
+        // Create output canvas
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 1920;
+        canvas.height = 1080;
 
-            // Draw semi-transparent white panel
+        if (!withAlpha) {
+            // Draw background first
+            const bgCanvas = await captureBackground();
+            ctx.drawImage(bgCanvas, 0, 0);
+
+            // Create glass effect: blur the panel area
+            ctx.save();
             ctx.beginPath();
             ctx.roundRect(panelX, panelY, panelWidth, panelHeight, borderRadius);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.fill();
-
-            // Capture and draw chart content
-            const chartCanvas = await html2canvas(elements.chartContainer, {
-                scale: 1920 / elements.chartContainer.offsetWidth,
-                backgroundColor: null,
-                useCORS: true,
-                allowTaint: true
-            });
-
-            ctx.drawImage(chartCanvas, panelX, panelY, panelWidth, panelHeight);
-            return canvas;
-        } else {
-            // MP4: full frame with background and glass effect
-            const bgCanvas = await captureBackground();
-            const { canvas: glassCanvas } = await createGlassEffect(bgCanvas, containerRect, previewRect);
-
-            // Capture chart content
-            const chartCanvas = await html2canvas(elements.chartContainer, {
-                scale: 1920 / elements.chartContainer.offsetWidth,
-                backgroundColor: null,
-                useCORS: true,
-                allowTaint: true
-            });
-
-            // Draw chart on glass
-            const ctx = glassCanvas.getContext('2d');
-            ctx.drawImage(chartCanvas, panelX, panelY, panelWidth, panelHeight);
-
-            return glassCanvas;
+            ctx.clip();
+            ctx.filter = 'blur(20px)';
+            ctx.drawImage(bgCanvas, 0, 0);
+            ctx.filter = 'none';
+            ctx.restore();
         }
+
+        // Draw semi-transparent white panel
+        ctx.beginPath();
+        ctx.roundRect(panelX, panelY, panelWidth, panelHeight, borderRadius);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.fill();
+
+        // Calculate content area within panel
+        const paddingH = 35 * scaleX;
+        const paddingV = 25 * scaleY;
+        const contentX = panelX + paddingH;
+        const contentY = panelY + paddingV;
+        const contentWidth = panelWidth - (paddingH * 2);
+
+        // Draw title
+        const titleSize = Math.round(42 * scaleX);
+        ctx.font = `600 ${titleSize}px "Roobert VRT", sans-serif`;
+        ctx.fillStyle = '#031037';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+
+        const title = elements.chartTitle.textContent || 'Titel';
+        const titleY = contentY + (parseFloat(elements.chartTitle.style.transform?.match(/translateY\(([^)]+)\)/)?.[1]) || 0) * scaleY;
+        ctx.fillText(title, panelX + panelWidth / 2, titleY);
+
+        // Draw subtitle
+        const subtitleSize = Math.round(24 * scaleX);
+        ctx.font = `500 ${subtitleSize}px "Roobert VRT", sans-serif`;
+        const subtitle = elements.chartSubtitle.textContent || 'Subtitel';
+        const subtitleY = titleY + titleSize + (6 * scaleY) + (parseFloat(elements.chartSubtitle.style.transform?.match(/translateY\(([^)]+)\)/)?.[1]) || 0) * scaleY;
+        ctx.fillText(subtitle, panelX + panelWidth / 2, subtitleY);
+
+        // Draw chart canvas directly (this is safe - we own this canvas)
+        const chartCanvas = elements.chartCanvas;
+        const chartWrapperRect = elements.chartWrapper.getBoundingClientRect();
+        const chartX = (chartWrapperRect.left - previewRect.left) * scaleX;
+        const chartY = (chartWrapperRect.top - previewRect.top) * scaleY;
+        const chartWidth = chartWrapperRect.width * scaleX;
+        const chartHeight = chartWrapperRect.height * scaleY;
+
+        ctx.drawImage(chartCanvas, chartX, chartY, chartWidth, chartHeight);
+
+        // Draw source
+        const sourceSize = Math.round(16 * scaleX);
+        ctx.font = `400 ${sourceSize}px "Roobert VRT", sans-serif`;
+        ctx.fillStyle = '#666666';
+        const source = elements.chartSource.textContent || '';
+        if (source) {
+            const sourceY = panelY + panelHeight - paddingV - sourceSize;
+            ctx.fillText(source, panelX + panelWidth / 2, sourceY);
+        }
+
+        return canvas;
     } catch (error) {
         console.error('Frame capture failed:', error);
-        return elements.chartCanvas;
+        // Fallback: just return the chart canvas
+        const fallbackCanvas = document.createElement('canvas');
+        fallbackCanvas.width = 1920;
+        fallbackCanvas.height = 1080;
+        const ctx = fallbackCanvas.getContext('2d');
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, 1920, 1080);
+        ctx.drawImage(elements.chartCanvas, 0, 0, 1920, 1080);
+        return fallbackCanvas;
     }
 }
 
@@ -1577,42 +1613,13 @@ async function handleExport(format) {
         return;
     }
 
-    // Image formats
-    if (typeof html2canvas === 'undefined') {
-        const link = document.createElement('a');
-        link.download = 'vrt-chart.png';
-        link.href = elements.chartCanvas.toDataURL('image/png');
-        link.click();
-        return;
-    }
-
-    const containerRect = elements.chartContainer.getBoundingClientRect();
-    const previewRect = elements.previewArea.getBoundingClientRect();
-
+    // Image formats - use captureFrame to avoid tainted canvas
     if (format === 'jpg') {
         try {
-            // Capture background
-            const bgCanvas = await captureBackground();
-
-            // Create glass effect
-            const { canvas: glassCanvas, panelX, panelY, panelWidth, panelHeight } =
-                await createGlassEffect(bgCanvas, containerRect, previewRect);
-
-            // Capture chart content (without background)
-            const chartCanvas = await html2canvas(elements.chartContainer, {
-                scale: 1920 / elements.chartContainer.offsetWidth,
-                backgroundColor: null,
-                useCORS: true,
-                allowTaint: true
-            });
-
-            // Draw chart content on top of glass effect
-            const ctx = glassCanvas.getContext('2d');
-            ctx.drawImage(chartCanvas, panelX, panelY, panelWidth, panelHeight);
-
+            const canvas = await captureFrame(false); // with background
             const link = document.createElement('a');
             link.download = 'vrt-graphic.jpg';
-            link.href = glassCanvas.toDataURL('image/jpeg', 0.95);
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
             link.click();
         } catch (error) {
             console.error('JPG export failed:', error);
@@ -1620,36 +1627,7 @@ async function handleExport(format) {
         }
     } else if (format === 'png') {
         try {
-            // PNG: Chart with glass effect but transparent outside the panel
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            canvas.width = 1920;
-            canvas.height = 1080;
-
-            const scaleX = 1920 / previewRect.width;
-            const scaleY = 1080 / previewRect.height;
-            const panelX = (containerRect.left - previewRect.left) * scaleX;
-            const panelY = (containerRect.top - previewRect.top) * scaleY;
-            const panelWidth = containerRect.width * scaleX;
-            const panelHeight = containerRect.height * scaleY;
-            const borderRadius = 12 * scaleX;
-
-            // Draw semi-transparent white panel with rounded corners
-            ctx.beginPath();
-            ctx.roundRect(panelX, panelY, panelWidth, panelHeight, borderRadius);
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.fill();
-
-            // Capture and draw chart content
-            const chartCanvas = await html2canvas(elements.chartContainer, {
-                scale: 1920 / elements.chartContainer.offsetWidth,
-                backgroundColor: null,
-                useCORS: true,
-                allowTaint: true
-            });
-
-            ctx.drawImage(chartCanvas, panelX, panelY, panelWidth, panelHeight);
-
+            const canvas = await captureFrame(true); // transparent background
             const link = document.createElement('a');
             link.download = 'vrt-graphic.png';
             link.href = canvas.toDataURL('image/png');
