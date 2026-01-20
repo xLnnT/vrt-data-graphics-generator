@@ -127,6 +127,8 @@ function cacheElements() {
         timelineThumb: document.getElementById('timelineThumb'),
 
         // Output
+        exportStart: document.getElementById('exportStart'),
+        exportEnd: document.getElementById('exportEnd'),
         outputBtns: document.querySelectorAll('.output-btn')
     };
 
@@ -1397,10 +1399,21 @@ async function exportVideo(format) {
 
     try {
         const fps = 25;
-        const totalSeconds = state.totalDuration;
-        const totalFrames = Math.floor(fps * totalSeconds);
         const videoWidth = 1920;
         const videoHeight = 1080;
+
+        // Get export range (start/end in seconds)
+        const exportStartTime = parseFloat(elements.exportStart.value) || 0;
+        const exportEndTime = parseFloat(elements.exportEnd.value) || state.totalDuration;
+        const exportDuration = Math.max(0, exportEndTime - exportStartTime);
+        const totalFrames = Math.floor(fps * exportDuration);
+
+        if (totalFrames <= 0) {
+            alert('Ongeldige export range. Controleer start en einde tijd.');
+            isExporting = false;
+            hideExportProgress();
+            return;
+        }
 
         // Save current state
         const savedFrame = state.currentFrame;
@@ -1454,8 +1467,9 @@ async function exportVideo(format) {
 
         // Capture and encode frames
         for (let i = 0; i < totalFrames; i++) {
-            // Update animation state
-            state.currentFrame = Math.floor((i / totalFrames) * getTotalFrames());
+            // Update animation state - account for export start time
+            const currentExportTime = exportStartTime + (i / fps);
+            state.currentFrame = Math.floor((currentExportTime / state.totalDuration) * getTotalFrames());
             updateTimelineDisplay();
             animateChart();
 
