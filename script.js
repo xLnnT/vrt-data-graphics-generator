@@ -1368,15 +1368,22 @@ async function captureFrame(withAlpha = false) {
         }
 
         // Capture chart container with html2canvas
-        const html2canvasOptions = {
+        // Use onclone to ensure we capture current DOM state (important for animation)
+        const containerCanvas = await html2canvas(elements.chartContainer, {
             backgroundColor: null,
-            scale: 2, // Higher resolution capture
+            scale: 2,
             useCORS: true,
             allowTaint: false,
-            logging: false
-        };
-
-        const containerCanvas = await html2canvas(elements.chartContainer, html2canvasOptions);
+            logging: false,
+            onclone: (clonedDoc, clonedElement) => {
+                // Copy current inline styles to ensure animation state is captured
+                clonedElement.style.clipPath = elements.chartContainer.style.clipPath;
+                const clonedTitle = clonedDoc.getElementById('chartTitle');
+                const clonedSubtitle = clonedDoc.getElementById('chartSubtitle');
+                if (clonedTitle) clonedTitle.style.transform = elements.chartTitle.style.transform;
+                if (clonedSubtitle) clonedSubtitle.style.transform = elements.chartSubtitle.style.transform;
+            }
+        });
 
         // Draw the captured container scaled to output size
         ctx.drawImage(
@@ -1498,17 +1505,18 @@ async function exportVideo(format) {
             updateTimelineDisplay();
             animateChart();
 
-            // Force chart to render synchronously
+            // Force chart to render and update DOM
             if (state.chart) {
                 state.chart.render();
             }
 
-            // Force browser reflow to ensure DOM is updated
+            // Force layout recalculation
             void elements.chartContainer.offsetHeight;
+            void elements.chartTitle.offsetHeight;
+            void elements.chartCanvas.offsetHeight;
 
-            // Wait for rendering to complete (longer wait for html2canvas)
-            await new Promise(r => setTimeout(r, 50));
-            await new Promise(r => requestAnimationFrame(r));
+            // Wait for paint
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
             // Capture frame
             const frameCanvas = await captureFrame(false);
