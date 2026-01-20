@@ -1350,6 +1350,47 @@ async function captureFrame(withAlpha = false) {
 
         ctx.drawImage(chartCanvas, chartX, chartY, chartWidth, chartHeight);
 
+        // Draw X-axis logos if enabled
+        if (elements.showLogos.checked && state.chart) {
+            const chartArea = state.chart.chartArea;
+            const xScale = state.chart.scales.x;
+            const labels = getXAxisLabels();
+            const canvasOffset = elements.chartCanvas.offsetLeft;
+
+            // Scale factor from preview chartWrapper to export
+            const wrapperScaleX = chartWidth / chartWrapperRect.width;
+            const wrapperScaleY = chartHeight / chartWrapperRect.height;
+
+            const logoSize = 80 * state.scaleFactor * wrapperScaleX;
+            const logoTopOffset = (chartArea.bottom + (10 * state.scaleFactor)) * wrapperScaleY;
+
+            for (let i = 0; i < labels.length; i++) {
+                const label = labels[i];
+                const logoImg = state.logoImages[label];
+
+                if (logoImg) {
+                    // Calculate x position (centered on bar)
+                    const xPos = (xScale.getPixelForValue(i) + canvasOffset) * wrapperScaleX;
+                    const logoX = chartX + xPos - (logoSize / 2);
+                    const logoY = chartY + logoTopOffset;
+
+                    ctx.drawImage(logoImg, logoX, logoY, logoSize, logoSize);
+                } else {
+                    // Draw text fallback
+                    const xPos = (xScale.getPixelForValue(i) + canvasOffset) * wrapperScaleX;
+                    const textX = chartX + xPos;
+                    const textY = chartY + logoTopOffset + (logoSize / 2);
+
+                    const fontSize = Math.round(12 * state.scaleFactor * wrapperScaleX);
+                    ctx.font = `400 ${fontSize}px "Roobert VRT", sans-serif`;
+                    ctx.fillStyle = '#666666';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(label, textX, textY);
+                }
+            }
+        }
+
         // Draw source
         const sourceSize = Math.round(16 * scaleX);
         ctx.font = `400 ${sourceSize}px "Roobert VRT", sans-serif`;
