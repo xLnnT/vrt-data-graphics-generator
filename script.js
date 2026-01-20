@@ -1316,21 +1316,40 @@ async function captureFrame(withAlpha = false) {
         const panelHeight = containerRect.height * scaleY;
         const borderRadius = 12 * scaleX;
 
+        // Get panel clip animation state (inset from top as percentage)
+        const clipPath = elements.chartContainer.style.clipPath || '';
+        const clipMatch = clipPath.match(/inset\(([0-9.]+)%/);
+        const clipTopPercent = clipMatch ? parseFloat(clipMatch[1]) : 0;
+        const clipTopPx = (clipTopPercent / 100) * panelHeight;
+
+        // Adjusted panel dimensions for clip animation
+        const clippedPanelY = panelY + clipTopPx;
+        const clippedPanelHeight = panelHeight - clipTopPx;
+
         // Create output canvas
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         canvas.width = 1920;
         canvas.height = 1080;
 
+        // Skip drawing panel content if fully clipped (hidden)
+        if (clippedPanelHeight <= 0) {
+            if (!withAlpha) {
+                const bgCanvas = await captureBackground();
+                ctx.drawImage(bgCanvas, 0, 0);
+            }
+            return canvas;
+        }
+
         if (!withAlpha) {
             // Draw background first
             const bgCanvas = await captureBackground();
             ctx.drawImage(bgCanvas, 0, 0);
 
-            // Create glass effect: blur the panel area
+            // Create glass effect: blur the clipped panel area
             ctx.save();
             ctx.beginPath();
-            ctx.roundRect(panelX, panelY, panelWidth, panelHeight, borderRadius);
+            ctx.roundRect(panelX, clippedPanelY, panelWidth, clippedPanelHeight, borderRadius);
             ctx.clip();
             ctx.filter = 'blur(20px)';
             ctx.drawImage(bgCanvas, 0, 0);
@@ -1338,11 +1357,17 @@ async function captureFrame(withAlpha = false) {
             ctx.restore();
         }
 
-        // Draw semi-transparent white panel
+        // Draw semi-transparent white panel (clipped)
         ctx.beginPath();
-        ctx.roundRect(panelX, panelY, panelWidth, panelHeight, borderRadius);
+        ctx.roundRect(panelX, clippedPanelY, panelWidth, clippedPanelHeight, borderRadius);
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.fill();
+
+        // Clip all subsequent drawing to the visible panel area
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(panelX, clippedPanelY, panelWidth, clippedPanelHeight, borderRadius);
+        ctx.clip();
 
         // Calculate content area within panel
         const paddingH = 35 * scaleX;
@@ -1429,6 +1454,9 @@ async function captureFrame(withAlpha = false) {
             const sourceY = panelY + panelHeight - paddingV - sourceSize;
             ctx.fillText(source, panelX + panelWidth / 2, sourceY);
         }
+
+        // Restore context (end panel clip)
+        ctx.restore();
 
         return canvas;
     } catch (error) {
@@ -1543,8 +1571,8 @@ async function exportVideo(format) {
             updateTimelineDisplay();
             animateChart();
 
-            // Wait for render
-            await new Promise(r => requestAnimationFrame(r));
+            // Wait for Chart.js to fully render (two frames to ensure complete render)
+            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
             // Capture frame
             const frameCanvas = await captureFrame(false);
