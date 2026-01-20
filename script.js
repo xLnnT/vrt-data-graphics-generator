@@ -1522,17 +1522,39 @@ async function exportVideo(format) {
             state.currentFrame = Math.floor((currentExportTime / state.totalDuration) * getTotalFrames());
 
             // Sync background video to current export time
-            if (bgVideo && bgVideo.readyState >= 2) {
+            if (bgVideo) {
+                // Set the time
                 bgVideo.currentTime = currentExportTime;
-                // Wait for video to seek to the correct frame
+
+                // Wait for seek to complete AND video to be ready
                 await new Promise(resolve => {
-                    const onSeeked = () => {
-                        bgVideo.removeEventListener('seeked', onSeeked);
-                        resolve();
+                    let resolved = false;
+                    const done = () => {
+                        if (!resolved) {
+                            resolved = true;
+                            bgVideo.removeEventListener('seeked', onSeeked);
+                            bgVideo.removeEventListener('canplay', onCanPlay);
+                            resolve();
+                        }
                     };
+                    const onSeeked = () => {
+                        // After seek, ensure video data is available
+                        if (bgVideo.readyState >= 2) {
+                            done();
+                        }
+                    };
+                    const onCanPlay = () => done();
+
                     bgVideo.addEventListener('seeked', onSeeked);
-                    // Timeout fallback in case seeked event doesn't fire
-                    setTimeout(resolve, 100);
+                    bgVideo.addEventListener('canplay', onCanPlay);
+
+                    // If already ready, resolve immediately
+                    if (bgVideo.readyState >= 3) {
+                        done();
+                    }
+
+                    // Timeout fallback
+                    setTimeout(done, 150);
                 });
             }
 
@@ -1618,28 +1640,56 @@ async function exportVideo(format) {
     isExporting = false;
 }
 
+// Cache for last successful video frame (prevents black flicker)
+let lastVideoFrameCanvas = null;
+
 // Capture background (image or video frame) to canvas
 async function captureBackground() {
-    return new Promise((resolve) => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 1920;
-        canvas.height = 1080;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 1920;
+    canvas.height = 1080;
 
-        // Check for video background
-        const bgVideo = elements.previewBackground.querySelector('video');
-        if (bgVideo && bgVideo.readyState >= 2) {
-            // Draw video frame
-            ctx.drawImage(bgVideo, 0, 0, 1920, 1080);
-            resolve(canvas);
-            return;
+    // Check for video background
+    const bgVideo = elements.previewBackground.querySelector('video');
+    if (bgVideo) {
+        // Wait for video to be ready if needed
+        if (bgVideo.readyState < 2) {
+            await new Promise(resolve => {
+                const checkReady = () => {
+                    if (bgVideo.readyState >= 2) {
+                        resolve();
+                    } else {
+                        requestAnimationFrame(checkReady);
+                    }
+                };
+                checkReady();
+                // Timeout fallback
+                setTimeout(resolve, 200);
+            });
         }
 
-        // Check for image background
-        const bgStyle = elements.previewBackground.style.backgroundImage;
-        if (bgStyle && bgStyle !== 'none' && bgStyle !== '') {
-            const urlMatch = bgStyle.match(/url\(["']?([^"']+)["']?\)/);
-            if (urlMatch) {
+        // Try to draw video frame
+        try {
+            ctx.drawImage(bgVideo, 0, 0, 1920, 1080);
+            // Cache this frame
+            lastVideoFrameCanvas = canvas;
+            return canvas;
+        } catch (e) {
+            // If drawing fails, use cached frame
+            if (lastVideoFrameCanvas) {
+                ctx.drawImage(lastVideoFrameCanvas, 0, 0);
+                return canvas;
+            }
+        }
+    }
+
+    // Check for image background
+    const bgStyle = elements.previewBackground.style.backgroundImage;
+    if (bgStyle && bgStyle !== 'none' && bgStyle !== '') {
+        const urlMatch = bgStyle.match(/url\(["']?([^"']+)["']?\)/);
+        if (urlMatch) {
+            return new Promise((resolve) => {
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
                 img.onload = () => {
@@ -1647,20 +1697,22 @@ async function captureBackground() {
                     resolve(canvas);
                 };
                 img.onerror = () => {
-                    ctx.fillStyle = '#000000';
+                    ctx.fillStyle = '#1a1a2e';
                     ctx.fillRect(0, 0, 1920, 1080);
                     resolve(canvas);
                 };
                 img.src = urlMatch[1];
-                return;
-            }
+            });
         }
+    }
 
-        // No background - fill with black
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, 1920, 1080);
-        resolve(canvas);
-    });
+    // No background - use dark gradient instead of black
+    const gradient = ctx.createLinearGradient(0, 0, 1920, 1080);
+    gradient.addColorStop(0, '#1a1a2e');
+    gradient.addColorStop(1, '#16213e');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1920, 1080);
+    return canvas;
 }
 
 // Create blurred glass panel effect manually
