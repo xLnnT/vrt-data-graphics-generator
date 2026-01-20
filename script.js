@@ -367,17 +367,46 @@ async function loadLogos() {
     // Clear old images
     state.logoImages = {};
 
-    // Load all logos in parallel
+    // Load all logos in parallel and convert to data URLs (prevents tainted canvas)
     await Promise.all(labels.map(label =>
         new Promise(resolve => {
             const img = new Image();
+            img.crossOrigin = 'anonymous';
             img.onload = () => {
-                state.logoImages[label] = img;
-                resolve();
+                // Convert to data URL to avoid tainted canvas issues
+                try {
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = img.naturalWidth;
+                    tempCanvas.height = img.naturalHeight;
+                    const ctx = tempCanvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    const dataUrl = tempCanvas.toDataURL('image/png');
+
+                    // Create new image from data URL
+                    const safeImg = new Image();
+                    safeImg.onload = () => {
+                        state.logoImages[label] = safeImg;
+                        resolve();
+                    };
+                    safeImg.src = dataUrl;
+                } catch (e) {
+                    // If conversion fails, use original (may taint canvas)
+                    state.logoImages[label] = img;
+                    resolve();
+                }
             };
             img.onerror = () => {
-                state.logoImages[label] = null;
-                resolve();
+                // Retry without crossOrigin for local file:// protocol
+                const imgLocal = new Image();
+                imgLocal.onload = () => {
+                    state.logoImages[label] = imgLocal;
+                    resolve();
+                };
+                imgLocal.onerror = () => {
+                    state.logoImages[label] = null;
+                    resolve();
+                };
+                imgLocal.src = getLogoPath(label);
             };
             img.src = getLogoPath(label);
         })
