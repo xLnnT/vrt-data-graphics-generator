@@ -1303,57 +1303,60 @@ function hideExportProgress() {
     }
 }
 
-// Capture single frame for video export (without html2canvas to avoid tainted canvas)
+// Capture single frame for video export using html2canvas for accurate rendering
 async function captureFrame(withAlpha = false) {
     try {
-        // Use fixed percentages matching CSS: left/right 6%, top/bottom 5%
         const outputWidth = 1920;
         const outputHeight = 1080;
-        const panelX = outputWidth * 0.06;
-        const panelY = outputHeight * 0.05;
-        const panelWidth = outputWidth * 0.88;  // 100% - 6% - 6%
-        const panelHeight = outputHeight * 0.90;  // 100% - 5% - 5%
-        const borderRadius = 12 * (outputWidth / 960);  // Scale radius based on output size
 
-        // Get DOM rects for calculating internal positions
-        const containerRect = elements.chartContainer.getBoundingClientRect();
+        // Get preview dimensions for scaling
         const previewRect = elements.previewArea.getBoundingClientRect();
-
-        // Scale factors: export panel size vs DOM panel size
-        const scaleX = panelWidth / containerRect.width;
-        const scaleY = panelHeight / containerRect.height;
-
-        // Get panel clip animation state (inset from top as percentage)
-        const clipPath = elements.chartContainer.style.clipPath || '';
-        const clipMatch = clipPath.match(/inset\(([0-9.]+)%/);
-        const clipTopPercent = clipMatch ? parseFloat(clipMatch[1]) : 0;
-        const clipTopPx = (clipTopPercent / 100) * panelHeight;
-
-        // Adjusted panel dimensions for clip animation
-        const clippedPanelY = panelY + clipTopPx;
-        const clippedPanelHeight = panelHeight - clipTopPx;
+        const scaleX = outputWidth / previewRect.width;
+        const scaleY = outputHeight / previewRect.height;
 
         // Create output canvas
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = 1920;
-        canvas.height = 1080;
-
-        // Skip drawing panel content if fully clipped (hidden)
-        if (clippedPanelHeight <= 0) {
-            if (!withAlpha) {
-                const bgCanvas = await captureBackground();
-                ctx.drawImage(bgCanvas, 0, 0);
-            }
-            return canvas;
-        }
+        canvas.width = outputWidth;
+        canvas.height = outputHeight;
 
         if (!withAlpha) {
             // Draw background first
             const bgCanvas = await captureBackground();
             ctx.drawImage(bgCanvas, 0, 0);
+        }
 
-            // Create glass effect: blur the clipped panel area
+        // Use html2canvas to capture the chart container with all its content
+        const containerRect = elements.chartContainer.getBoundingClientRect();
+
+        // Temporarily remove backdrop-filter (html2canvas doesn't support it)
+        const originalBackdrop = elements.chartContainer.style.backdropFilter;
+        const originalWebkitBackdrop = elements.chartContainer.style.webkitBackdropFilter;
+
+        // Calculate panel position in output
+        const panelX = (containerRect.left - previewRect.left) * scaleX;
+        const panelY = (containerRect.top - previewRect.top) * scaleY;
+        const panelWidth = containerRect.width * scaleX;
+        const panelHeight = containerRect.height * scaleY;
+
+        // Get clip animation state
+        const clipPath = elements.chartContainer.style.clipPath || '';
+        const clipMatch = clipPath.match(/inset\(([0-9.]+)%/);
+        const clipTopPercent = clipMatch ? parseFloat(clipMatch[1]) : 0;
+
+        // Skip if fully clipped
+        if (clipTopPercent >= 100) {
+            return canvas;
+        }
+
+        // Draw blurred background in panel area (simulating backdrop-filter)
+        if (!withAlpha) {
+            const bgCanvas = await captureBackground();
+            const clipTopPx = (clipTopPercent / 100) * panelHeight;
+            const clippedPanelY = panelY + clipTopPx;
+            const clippedPanelHeight = panelHeight - clipTopPx;
+            const borderRadius = 12 * scaleX;
+
             ctx.save();
             ctx.beginPath();
             ctx.roundRect(panelX, clippedPanelY, panelWidth, clippedPanelHeight, borderRadius);
@@ -1364,111 +1367,23 @@ async function captureFrame(withAlpha = false) {
             ctx.restore();
         }
 
-        // Draw semi-transparent white panel (clipped)
-        ctx.beginPath();
-        ctx.roundRect(panelX, clippedPanelY, panelWidth, clippedPanelHeight, borderRadius);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-        ctx.fill();
+        // Capture chart container with html2canvas
+        const html2canvasOptions = {
+            backgroundColor: null,
+            scale: 2, // Higher resolution capture
+            useCORS: true,
+            allowTaint: false,
+            logging: false
+        };
 
-        // Clip all subsequent drawing to the visible panel area
-        ctx.save();
-        ctx.beginPath();
-        ctx.roundRect(panelX, clippedPanelY, panelWidth, clippedPanelHeight, borderRadius);
-        ctx.clip();
+        const containerCanvas = await html2canvas(elements.chartContainer, html2canvasOptions);
 
-        // Calculate content area within panel
-        const paddingH = 35 * scaleX;
-        const paddingV = 25 * scaleY;
-        const contentX = panelX + paddingH;
-        const contentY = panelY + paddingV;
-        const contentWidth = panelWidth - (paddingH * 2);
-
-        // Draw title
-        const titleSize = Math.round(42 * scaleX);
-        ctx.font = `600 ${titleSize}px "Roobert VRT", sans-serif`;
-        ctx.fillStyle = '#031037';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-
-        const title = elements.chartTitle.textContent || 'Titel';
-        const titleY = contentY + (parseFloat(elements.chartTitle.style.transform?.match(/translateY\(([^)]+)\)/)?.[1]) || 0) * scaleY;
-        ctx.fillText(title, panelX + panelWidth / 2, titleY);
-
-        // Draw subtitle
-        const subtitleSize = Math.round(24 * scaleX);
-        ctx.font = `500 ${subtitleSize}px "Roobert VRT", sans-serif`;
-        const subtitle = elements.chartSubtitle.textContent || 'Subtitel';
-        const subtitleY = titleY + titleSize + (6 * scaleY) + (parseFloat(elements.chartSubtitle.style.transform?.match(/translateY\(([^)]+)\)/)?.[1]) || 0) * scaleY;
-        ctx.fillText(subtitle, panelX + panelWidth / 2, subtitleY);
-
-        // Draw chart canvas directly (this is safe - we own this canvas)
-        // Calculate chart position relative to the panel for consistent layout
-        const chartCanvas = elements.chartCanvas;
-        const chartWrapperRect = elements.chartWrapper.getBoundingClientRect();
-
-        // Position chart relative to container (panel) using panel scale factors
-        const chartRelativeX = chartWrapperRect.left - containerRect.left;
-        const chartRelativeY = chartWrapperRect.top - containerRect.top;
-        const chartX = panelX + (chartRelativeX * scaleX);
-        const chartY = panelY + (chartRelativeY * scaleY);
-        const chartWidth = chartWrapperRect.width * scaleX;
-        const chartHeight = chartWrapperRect.height * scaleY;
-
-        ctx.drawImage(chartCanvas, chartX, chartY, chartWidth, chartHeight);
-
-        // Draw X-axis logos if enabled
-        if (elements.showLogos.checked && state.chart) {
-            const chartArea = state.chart.chartArea;
-            const xScale = state.chart.scales.x;
-            const labels = getXAxisLabels();
-            const canvasOffset = elements.chartCanvas.offsetLeft;
-
-            // Scale factor from preview chartWrapper to export
-            const wrapperScaleX = chartWidth / chartWrapperRect.width;
-            const wrapperScaleY = chartHeight / chartWrapperRect.height;
-
-            const logoSize = 80 * state.scaleFactor * wrapperScaleX;
-            const logoTopOffset = (chartArea.bottom + (10 * state.scaleFactor)) * wrapperScaleY;
-
-            for (let i = 0; i < labels.length; i++) {
-                const label = labels[i];
-                const logoImg = state.logoImages[label];
-
-                if (logoImg) {
-                    // Calculate x position (centered on bar)
-                    const xPos = (xScale.getPixelForValue(i) + canvasOffset) * wrapperScaleX;
-                    const logoX = chartX + xPos - (logoSize / 2);
-                    const logoY = chartY + logoTopOffset;
-
-                    ctx.drawImage(logoImg, logoX, logoY, logoSize, logoSize);
-                } else {
-                    // Draw text fallback
-                    const xPos = (xScale.getPixelForValue(i) + canvasOffset) * wrapperScaleX;
-                    const textX = chartX + xPos;
-                    const textY = chartY + logoTopOffset + (logoSize / 2);
-
-                    const fontSize = Math.round(12 * state.scaleFactor * wrapperScaleX);
-                    ctx.font = `400 ${fontSize}px "Roobert VRT", sans-serif`;
-                    ctx.fillStyle = '#666666';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(label, textX, textY);
-                }
-            }
-        }
-
-        // Draw source
-        const sourceSize = Math.round(16 * scaleX);
-        ctx.font = `400 ${sourceSize}px "Roobert VRT", sans-serif`;
-        ctx.fillStyle = '#666666';
-        const source = elements.chartSource.textContent || '';
-        if (source) {
-            const sourceY = panelY + panelHeight - paddingV - sourceSize;
-            ctx.fillText(source, panelX + panelWidth / 2, sourceY);
-        }
-
-        // Restore context (end panel clip)
-        ctx.restore();
+        // Draw the captured container scaled to output size
+        ctx.drawImage(
+            containerCanvas,
+            panelX, panelY,
+            panelWidth, panelHeight
+        );
 
         return canvas;
     } catch (error) {
