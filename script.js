@@ -1320,18 +1320,16 @@ async function captureFrame(withAlpha = false) {
         canvas.width = outputWidth;
         canvas.height = outputHeight;
 
-        if (!withAlpha) {
+        // Capture background once and reuse
+        const bgCanvas = !withAlpha ? await captureBackground() : null;
+
+        if (bgCanvas) {
             // Draw background first
-            const bgCanvas = await captureBackground();
             ctx.drawImage(bgCanvas, 0, 0);
         }
 
         // Use html2canvas to capture the chart container with all its content
         const containerRect = elements.chartContainer.getBoundingClientRect();
-
-        // Temporarily remove backdrop-filter (html2canvas doesn't support it)
-        const originalBackdrop = elements.chartContainer.style.backdropFilter;
-        const originalWebkitBackdrop = elements.chartContainer.style.webkitBackdropFilter;
 
         // Calculate panel position in output
         const panelX = (containerRect.left - previewRect.left) * scaleX;
@@ -1344,18 +1342,24 @@ async function captureFrame(withAlpha = false) {
         const clipMatch = clipPath.match(/inset\(([0-9.]+)%/);
         const clipTopPercent = clipMatch ? parseFloat(clipMatch[1]) : 0;
 
-        // Skip if fully clipped
+        // Skip panel drawing if fully clipped (just return background)
         if (clipTopPercent >= 100) {
             return canvas;
         }
 
+        // Calculate clipped dimensions
+        const clipTopPx = (clipTopPercent / 100) * panelHeight;
+        const clippedPanelY = panelY + clipTopPx;
+        const clippedPanelHeight = panelHeight - clipTopPx;
+        const borderRadius = 12 * scaleX;
+
+        // Skip if clipped height is too small
+        if (clippedPanelHeight < 1) {
+            return canvas;
+        }
+
         // Draw blurred background in panel area (simulating backdrop-filter)
-        if (!withAlpha) {
-            const bgCanvas = await captureBackground();
-            const clipTopPx = (clipTopPercent / 100) * panelHeight;
-            const clippedPanelY = panelY + clipTopPx;
-            const clippedPanelHeight = panelHeight - clipTopPx;
-            const borderRadius = 12 * scaleX;
+        if (bgCanvas) {
 
             ctx.save();
             ctx.beginPath();
@@ -1384,12 +1388,6 @@ async function captureFrame(withAlpha = false) {
                 if (clonedSubtitle) clonedSubtitle.style.transform = elements.chartSubtitle.style.transform;
             }
         });
-
-        // Apply clip animation to the html2canvas output as well
-        const clipTopPx = (clipTopPercent / 100) * panelHeight;
-        const clippedPanelY = panelY + clipTopPx;
-        const clippedPanelHeight = panelHeight - clipTopPx;
-        const borderRadius = 12 * scaleX;
 
         // Clip the container drawing to match the animation state
         ctx.save();
