@@ -1306,15 +1306,22 @@ function hideExportProgress() {
 // Capture single frame for video export (without html2canvas to avoid tainted canvas)
 async function captureFrame(withAlpha = false) {
     try {
+        // Use fixed percentages matching CSS: left/right 6%, top/bottom 5%
+        const outputWidth = 1920;
+        const outputHeight = 1080;
+        const panelX = outputWidth * 0.06;
+        const panelY = outputHeight * 0.05;
+        const panelWidth = outputWidth * 0.88;  // 100% - 6% - 6%
+        const panelHeight = outputHeight * 0.90;  // 100% - 5% - 5%
+        const borderRadius = 12 * (outputWidth / 960);  // Scale radius based on output size
+
+        // Get DOM rects for calculating internal positions
         const containerRect = elements.chartContainer.getBoundingClientRect();
         const previewRect = elements.previewArea.getBoundingClientRect();
-        const scaleX = 1920 / previewRect.width;
-        const scaleY = 1080 / previewRect.height;
-        const panelX = (containerRect.left - previewRect.left) * scaleX;
-        const panelY = (containerRect.top - previewRect.top) * scaleY;
-        const panelWidth = containerRect.width * scaleX;
-        const panelHeight = containerRect.height * scaleY;
-        const borderRadius = 12 * scaleX;
+
+        // Scale factors: export panel size vs DOM panel size
+        const scaleX = panelWidth / containerRect.width;
+        const scaleY = panelHeight / containerRect.height;
 
         // Get panel clip animation state (inset from top as percentage)
         const clipPath = elements.chartContainer.style.clipPath || '';
@@ -1395,10 +1402,15 @@ async function captureFrame(withAlpha = false) {
         ctx.fillText(subtitle, panelX + panelWidth / 2, subtitleY);
 
         // Draw chart canvas directly (this is safe - we own this canvas)
+        // Calculate chart position relative to the panel for consistent layout
         const chartCanvas = elements.chartCanvas;
         const chartWrapperRect = elements.chartWrapper.getBoundingClientRect();
-        const chartX = (chartWrapperRect.left - previewRect.left) * scaleX;
-        const chartY = (chartWrapperRect.top - previewRect.top) * scaleY;
+
+        // Position chart relative to container (panel) using panel scale factors
+        const chartRelativeX = chartWrapperRect.left - containerRect.left;
+        const chartRelativeY = chartWrapperRect.top - containerRect.top;
+        const chartX = panelX + (chartRelativeX * scaleX);
+        const chartY = panelY + (chartRelativeY * scaleY);
         const chartWidth = chartWrapperRect.width * scaleX;
         const chartHeight = chartWrapperRect.height * scaleY;
 
