@@ -1227,57 +1227,7 @@ function cubicBezier(t, x1, y1, x2, y2) {
 // EXPORT
 // ============================================
 
-// FFmpeg instance
-let ffmpeg = null;
-let ffmpegLoaded = false;
 let isExporting = false;
-
-// Initialize FFmpeg
-async function initFFmpeg() {
-    if (ffmpegLoaded) return true;
-
-    try {
-        // Check if FFmpeg libraries are available
-        if (typeof FFmpegWASM === 'undefined' || typeof FFmpegUtil === 'undefined') {
-            throw new Error('FFmpeg libraries not loaded');
-        }
-
-        const { FFmpeg } = FFmpegWASM;
-        const { toBlobURL } = FFmpegUtil;
-
-        ffmpeg = new FFmpeg();
-
-        // Log progress
-        ffmpeg.on('log', ({ message }) => {
-            console.log('FFmpeg:', message);
-        });
-
-        ffmpeg.on('progress', ({ progress }) => {
-            if (progress > 0) {
-                showExportProgress('Video encoderen...', 70 + (progress * 25));
-            }
-        });
-
-        showExportProgress('FFmpeg core laden...', 5);
-
-        // Load FFmpeg with all URLs as blobs to avoid CORS issues
-        const coreBaseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
-        const ffmpegBaseURL = 'https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/umd';
-
-        await ffmpeg.load({
-            coreURL: await toBlobURL(`${coreBaseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${coreBaseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-            workerURL: await toBlobURL(`${ffmpegBaseURL}/814.ffmpeg.js`, 'text/javascript')
-        });
-
-        ffmpegLoaded = true;
-        return true;
-    } catch (error) {
-        console.error('Failed to load FFmpeg:', error);
-        alert(`FFmpeg kon niet worden geladen: ${error.message}`);
-        return false;
-    }
-}
 
 // Show export progress
 function showExportProgress(message, percent = null) {
@@ -1387,30 +1337,34 @@ async function captureFrame(withAlpha = false) {
     }
 }
 
-// Export video with FFmpeg
+// Export video with WebCodecs + mp4-muxer
 async function exportVideo(format) {
     if (isExporting) {
         alert('Export is al bezig. Even geduld.');
         return;
     }
 
-    isExporting = true;
-    showExportProgress('FFmpeg laden...', 0);
-
-    // Initialize FFmpeg
-    const loaded = await initFFmpeg();
-    if (!loaded) {
-        isExporting = false;
-        hideExportProgress();
+    // Check WebCodecs support
+    if (typeof VideoEncoder === 'undefined') {
+        alert('Je browser ondersteunt geen video encoding. Gebruik Chrome of Edge.');
         return;
     }
+
+    // MOV+alpha not supported with WebCodecs (no ProRes encoder)
+    if (format === 'mov-alpha') {
+        alert('MOV + alpha export is niet beschikbaar in de browser. Gebruik MP4 of PNG export.');
+        return;
+    }
+
+    isExporting = true;
+    showExportProgress('Video voorbereiden...', 0);
 
     try {
         const fps = 25;
         const totalSeconds = state.totalDuration;
         const totalFrames = Math.floor(fps * totalSeconds);
-
-        showExportProgress('Frames opnemen...', 0);
+        const videoWidth = 1920;
+        const videoHeight = 1080;
 
         // Save current state
         const savedFrame = state.currentFrame;
@@ -1419,171 +1373,103 @@ async function exportVideo(format) {
             togglePlayback();
         }
 
-        // Check if we need alpha channel
-        const withAlpha = format === 'mov-alpha';
+        // Initialize mp4-muxer
+        const { Muxer, ArrayBufferTarget } = Mp4Muxer;
+        const target = new ArrayBufferTarget();
+        const muxer = new Muxer({
+            target,
+            video: {
+                codec: 'avc',
+                width: videoWidth,
+                height: videoHeight
+            },
+            fastStart: 'in-memory',
+            firstTimestampBehavior: 'offset'
+        });
 
-        // Capture all frames
-        const frames = [];
+        // Initialize VideoEncoder
+        let encodedFrames = 0;
+        const videoEncoder = new VideoEncoder({
+            output: (chunk, meta) => {
+                muxer.addVideoChunk(chunk, meta);
+                encodedFrames++;
+            },
+            error: e => {
+                console.error('Encoder error:', e);
+                throw e;
+            }
+        });
+
+        videoEncoder.configure({
+            codec: 'avc1.640033',
+            width: videoWidth,
+            height: videoHeight,
+            bitrate: 15_000_000,
+            framerate: fps
+        });
+
+        showExportProgress('Frames opnemen en encoderen...', 0);
+
+        // Create offscreen canvas for rendering
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = videoWidth;
+        tempCanvas.height = videoHeight;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        // Capture and encode frames
         for (let i = 0; i < totalFrames; i++) {
-            state.currentFrame = i;
+            // Update animation state
+            state.currentFrame = Math.floor((i / totalFrames) * getTotalFrames());
             updateTimelineDisplay();
             animateChart();
 
             // Wait for render
             await new Promise(r => requestAnimationFrame(r));
 
-            const canvas = await captureFrame(withAlpha);
-            const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
-            const arrayBuffer = await blob.arrayBuffer();
-            frames.push(new Uint8Array(arrayBuffer));
+            // Capture frame
+            const frameCanvas = await captureFrame(false);
 
-            const percent = (i / totalFrames) * 50;
-            showExportProgress(`Frames opnemen... (${i + 1}/${totalFrames})`, percent);
+            // Draw to temp canvas at exact output size
+            tempCtx.drawImage(frameCanvas, 0, 0, videoWidth, videoHeight);
+
+            // Create VideoFrame and encode
+            const frame = new VideoFrame(tempCanvas, {
+                timestamp: (i * 1_000_000) / fps
+            });
+
+            const keyFrame = i % 60 === 0; // Keyframe every 60 frames
+            videoEncoder.encode(frame, { keyFrame });
+            frame.close();
+
+            // Update progress
+            const percent = (i / totalFrames) * 90;
+            showExportProgress(`Frames verwerken... (${i + 1}/${totalFrames})`, percent);
         }
+
+        // Wait for encoder to finish
+        await videoEncoder.flush();
+        videoEncoder.close();
+
+        showExportProgress('Video finaliseren...', 95);
+
+        // Finalize muxer
+        muxer.finalize();
+
+        // Create download
+        const videoBlob = new Blob([target.buffer], { type: 'video/mp4' });
+        const url = URL.createObjectURL(videoBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'vrt-graphic.mp4';
+        link.click();
+
+        // Cleanup
+        URL.revokeObjectURL(url);
 
         // Restore state
         state.currentFrame = savedFrame;
         updateTimelineDisplay();
         animateChart();
-
-        showExportProgress('Video encoderen...', 50);
-
-        // Write frames to FFmpeg
-        for (let i = 0; i < frames.length; i++) {
-            const filename = `frame${i.toString().padStart(5, '0')}.png`;
-            await ffmpeg.writeFile(filename, frames[i]);
-
-            const percent = 50 + (i / frames.length) * 20;
-            showExportProgress(`Frames schrijven... (${i + 1}/${frames.length})`, percent);
-        }
-
-        showExportProgress('Video encoderen met H.264...', 75);
-
-        // Get audio from background video if exists
-        const bgVideo = elements.previewBackground.querySelector('video');
-        let hasAudio = false;
-
-        if (bgVideo && format === 'mp4-audio') {
-            try {
-                const response = await fetch(bgVideo.src);
-                const videoBlob = await response.blob();
-                const videoData = await videoBlob.arrayBuffer();
-                await ffmpeg.writeFile('input_audio.mp4', new Uint8Array(videoData));
-                hasAudio = true;
-            } catch (e) {
-                console.log('No audio available from background video');
-            }
-        }
-
-        // FFmpeg encoding command
-        // H.264, VBR @ 15 Mbps, 48kHz 16-bit stereo audio
-        let ffmpegCmd;
-
-        if (format === 'mp4-audio' && hasAudio) {
-            ffmpegCmd = [
-                '-framerate', '25',
-                '-i', 'frame%05d.png',
-                '-i', 'input_audio.mp4',
-                '-c:v', 'libx264',
-                '-preset', 'medium',
-                '-b:v', '15M',
-                '-maxrate', '20M',
-                '-bufsize', '30M',
-                '-pix_fmt', 'yuv420p',
-                '-c:a', 'aac',
-                '-b:a', '256k',
-                '-ar', '48000',
-                '-ac', '2',
-                '-shortest',
-                '-y',
-                'output.mp4'
-            ];
-        } else if (format === 'mp4-audio') {
-            // MP4 with silent audio track
-            ffmpegCmd = [
-                '-framerate', '25',
-                '-i', 'frame%05d.png',
-                '-f', 'lavfi',
-                '-i', 'anullsrc=r=48000:cl=stereo',
-                '-c:v', 'libx264',
-                '-preset', 'medium',
-                '-b:v', '15M',
-                '-maxrate', '20M',
-                '-bufsize', '30M',
-                '-pix_fmt', 'yuv420p',
-                '-c:a', 'aac',
-                '-b:a', '256k',
-                '-ar', '48000',
-                '-ac', '2',
-                '-t', String(totalSeconds),
-                '-y',
-                'output.mp4'
-            ];
-        } else if (format === 'mp4-noaudio') {
-            ffmpegCmd = [
-                '-framerate', '25',
-                '-i', 'frame%05d.png',
-                '-c:v', 'libx264',
-                '-preset', 'medium',
-                '-b:v', '15M',
-                '-maxrate', '20M',
-                '-bufsize', '30M',
-                '-pix_fmt', 'yuv420p',
-                '-an',
-                '-y',
-                'output.mp4'
-            ];
-        } else if (format === 'mov-alpha') {
-            // QuickTime ProRes 4444 with alpha, HLG color, 1920x1080, 25fps progressive
-            // Audio: 48000 Hz, stereo, 16-bit
-            ffmpegCmd = [
-                '-framerate', '25',
-                '-i', 'frame%05d.png',
-                '-f', 'lavfi',
-                '-i', 'anullsrc=r=48000:cl=stereo',
-                '-c:v', 'prores_ks',
-                '-profile:v', '4444',
-                '-pix_fmt', 'yuva444p10le',
-                '-s', '1920x1080',
-                '-color_primaries', 'bt2020',
-                '-color_trc', 'arib-std-b67',
-                '-colorspace', 'bt2020nc',
-                '-c:a', 'pcm_s16le',
-                '-ar', '48000',
-                '-ac', '2',
-                '-t', String(totalSeconds),
-                '-y',
-                'output.mov'
-            ];
-        }
-
-        await ffmpeg.exec(ffmpegCmd);
-
-        showExportProgress('Bestand voorbereiden...', 95);
-
-        // Read output file
-        const outputExt = format === 'mov-alpha' ? 'mov' : 'mp4';
-        const data = await ffmpeg.readFile(`output.${outputExt}`);
-
-        // Create download
-        const blob = new Blob([data.buffer], {
-            type: format === 'mov-alpha' ? 'video/quicktime' : 'video/mp4'
-        });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `vrt-graphic.${outputExt}`;
-        link.click();
-
-        // Cleanup
-        URL.revokeObjectURL(url);
-        for (let i = 0; i < frames.length; i++) {
-            await ffmpeg.deleteFile(`frame${i.toString().padStart(5, '0')}.png`);
-        }
-        await ffmpeg.deleteFile(`output.${outputExt}`);
-        if (hasAudio) {
-            await ffmpeg.deleteFile('input_audio.mp4');
-        }
 
         hideExportProgress();
 
@@ -1685,7 +1571,7 @@ async function createGlassEffect(backgroundCanvas, containerRect, previewRect) {
 
 // Main export handler
 async function handleExport(format) {
-    // Video formats use FFmpeg
+    // Video formats use WebCodecs + mp4-muxer
     if (['mp4-audio', 'mp4-noaudio', 'mov-alpha'].includes(format)) {
         await exportVideo(format);
         return;
