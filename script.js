@@ -1385,12 +1385,26 @@ async function captureFrame(withAlpha = false) {
             }
         });
 
+        // Apply clip animation to the html2canvas output as well
+        const clipTopPx = (clipTopPercent / 100) * panelHeight;
+        const clippedPanelY = panelY + clipTopPx;
+        const clippedPanelHeight = panelHeight - clipTopPx;
+        const borderRadius = 12 * scaleX;
+
+        // Clip the container drawing to match the animation state
+        ctx.save();
+        ctx.beginPath();
+        ctx.roundRect(panelX, clippedPanelY, panelWidth, clippedPanelHeight, borderRadius);
+        ctx.clip();
+
         // Draw the captured container scaled to output size
         ctx.drawImage(
             containerCanvas,
             panelX, panelY,
             panelWidth, panelHeight
         );
+
+        ctx.restore();
 
         return canvas;
     } catch (error) {
