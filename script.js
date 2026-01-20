@@ -1303,63 +1303,37 @@ function hideExportProgress() {
     }
 }
 
-// Capture single frame for video export using html2canvas for accurate rendering
+// Capture frame for IMAGE export (PNG/JPG) using html2canvas for accuracy
 async function captureFrame(withAlpha = false) {
     try {
         const outputWidth = 1920;
         const outputHeight = 1080;
-
-        // Get preview dimensions for scaling
         const previewRect = elements.previewArea.getBoundingClientRect();
         const scaleX = outputWidth / previewRect.width;
         const scaleY = outputHeight / previewRect.height;
 
-        // Create output canvas
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         canvas.width = outputWidth;
         canvas.height = outputHeight;
 
         if (!withAlpha) {
-            // Draw background first
             const bgCanvas = await captureBackground();
             ctx.drawImage(bgCanvas, 0, 0);
         }
 
-        // Use html2canvas to capture the chart container with all its content
         const containerRect = elements.chartContainer.getBoundingClientRect();
-
-        // Temporarily remove backdrop-filter (html2canvas doesn't support it)
-        const originalBackdrop = elements.chartContainer.style.backdropFilter;
-        const originalWebkitBackdrop = elements.chartContainer.style.webkitBackdropFilter;
-
-        // Calculate panel position in output
         const panelX = (containerRect.left - previewRect.left) * scaleX;
         const panelY = (containerRect.top - previewRect.top) * scaleY;
         const panelWidth = containerRect.width * scaleX;
         const panelHeight = containerRect.height * scaleY;
 
-        // Get clip animation state
-        const clipPath = elements.chartContainer.style.clipPath || '';
-        const clipMatch = clipPath.match(/inset\(([0-9.]+)%/);
-        const clipTopPercent = clipMatch ? parseFloat(clipMatch[1]) : 0;
-
-        // Skip if fully clipped
-        if (clipTopPercent >= 100) {
-            return canvas;
-        }
-
-        // Draw blurred background in panel area (simulating backdrop-filter)
+        // Draw blurred background in panel area
         if (!withAlpha) {
             const bgCanvas = await captureBackground();
-            const clipTopPx = (clipTopPercent / 100) * panelHeight;
-            const clippedPanelY = panelY + clipTopPx;
-            const clippedPanelHeight = panelHeight - clipTopPx;
-            const borderRadius = 12 * scaleX;
-
             ctx.save();
             ctx.beginPath();
-            ctx.roundRect(panelX, clippedPanelY, panelWidth, clippedPanelHeight, borderRadius);
+            ctx.roundRect(panelX, panelY, panelWidth, panelHeight, 12 * scaleX);
             ctx.clip();
             ctx.filter = 'blur(20px)';
             ctx.drawImage(bgCanvas, 0, 0);
@@ -1367,37 +1341,164 @@ async function captureFrame(withAlpha = false) {
             ctx.restore();
         }
 
-        // Capture chart container with html2canvas
-        const html2canvasOptions = {
+        // Use html2canvas for accurate capture
+        const containerCanvas = await html2canvas(elements.chartContainer, {
             backgroundColor: null,
-            scale: 2, // Higher resolution capture
+            scale: 2,
             useCORS: true,
             allowTaint: false,
             logging: false
-        };
+        });
 
-        const containerCanvas = await html2canvas(elements.chartContainer, html2canvasOptions);
-
-        // Draw the captured container scaled to output size
-        ctx.drawImage(
-            containerCanvas,
-            panelX, panelY,
-            panelWidth, panelHeight
-        );
-
+        ctx.drawImage(containerCanvas, panelX, panelY, panelWidth, panelHeight);
         return canvas;
     } catch (error) {
         console.error('Frame capture failed:', error);
-        // Fallback: just return the chart canvas
-        const fallbackCanvas = document.createElement('canvas');
-        fallbackCanvas.width = 1920;
-        fallbackCanvas.height = 1080;
-        const ctx = fallbackCanvas.getContext('2d');
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, 1920, 1080);
-        ctx.drawImage(elements.chartCanvas, 0, 0, 1920, 1080);
-        return fallbackCanvas;
+        return createFallbackCanvas();
     }
+}
+
+// Capture frame for VIDEO export - manual drawing for speed and animation sync
+async function captureFrameVideo(bgCanvas) {
+    const outputWidth = 1920;
+    const outputHeight = 1080;
+    const previewRect = elements.previewArea.getBoundingClientRect();
+    const scale = outputWidth / previewRect.width;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
+
+    // Draw background
+    ctx.drawImage(bgCanvas, 0, 0);
+
+    // Get panel dimensions
+    const containerRect = elements.chartContainer.getBoundingClientRect();
+    const panelX = (containerRect.left - previewRect.left) * scale;
+    const panelY = (containerRect.top - previewRect.top) * scale;
+    const panelWidth = containerRect.width * scale;
+    const panelHeight = containerRect.height * scale;
+    const borderRadius = 12 * scale;
+
+    // Get clip animation state
+    const clipPath = elements.chartContainer.style.clipPath || '';
+    const clipMatch = clipPath.match(/inset\(([0-9.]+)%/);
+    const clipTopPercent = clipMatch ? parseFloat(clipMatch[1]) : 0;
+    const clipTopPx = (clipTopPercent / 100) * panelHeight;
+
+    // Skip if panel is fully hidden
+    if (clipTopPercent >= 100) return canvas;
+
+    const visiblePanelY = panelY + clipTopPx;
+    const visiblePanelHeight = panelHeight - clipTopPx;
+
+    // Draw blurred background in panel area
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(panelX, visiblePanelY, panelWidth, visiblePanelHeight, borderRadius);
+    ctx.clip();
+    ctx.filter = 'blur(20px)';
+    ctx.drawImage(bgCanvas, 0, 0);
+    ctx.filter = 'none';
+    ctx.restore();
+
+    // Draw semi-transparent panel
+    ctx.beginPath();
+    ctx.roundRect(panelX, visiblePanelY, panelWidth, visiblePanelHeight, borderRadius);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.fill();
+
+    // Clip content to visible panel area
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(panelX, visiblePanelY, panelWidth, visiblePanelHeight, borderRadius);
+    ctx.clip();
+
+    // Get title/subtitle animation offsets
+    const titleTransform = elements.chartTitle.style.transform || '';
+    const titleOffsetMatch = titleTransform.match(/translateY\(([0-9.]+)px\)/);
+    const titleOffset = titleOffsetMatch ? parseFloat(titleOffsetMatch[1]) * scale : 0;
+
+    const subtitleTransform = elements.chartSubtitle.style.transform || '';
+    const subtitleOffsetMatch = subtitleTransform.match(/translateY\(([0-9.]+)px\)/);
+    const subtitleOffset = subtitleOffsetMatch ? parseFloat(subtitleOffsetMatch[1]) * scale : 0;
+
+    // Draw title
+    const paddingH = 35 * scale;
+    const paddingV = 25 * scale;
+    const titleSize = Math.round(42 * scale);
+    ctx.font = `600 ${titleSize}px "Roobert VRT", sans-serif`;
+    ctx.fillStyle = '#031037';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const titleY = panelY + paddingV + titleOffset;
+    ctx.fillText(elements.chartTitle.textContent || 'Titel', panelX + panelWidth / 2, titleY);
+
+    // Draw subtitle
+    const subtitleSize = Math.round(24 * scale);
+    ctx.font = `500 ${subtitleSize}px "Roobert VRT", sans-serif`;
+    const subtitleY = titleY + titleSize + (6 * scale) + subtitleOffset;
+    ctx.fillText(elements.chartSubtitle.textContent || 'Subtitel', panelX + panelWidth / 2, subtitleY);
+
+    // Draw chart - position relative to panel
+    const chartWrapperRect = elements.chartWrapper.getBoundingClientRect();
+    const chartX = panelX + (chartWrapperRect.left - containerRect.left) * scale;
+    const chartY = panelY + (chartWrapperRect.top - containerRect.top) * scale;
+    const chartWidth = chartWrapperRect.width * scale;
+    const chartHeight = chartWrapperRect.height * scale;
+
+    ctx.drawImage(elements.chartCanvas, chartX, chartY, chartWidth, chartHeight);
+
+    // Draw logos if enabled
+    if (elements.showLogos.checked && state.chart && state.chart.scales.x) {
+        const chartArea = state.chart.chartArea;
+        const xAxisScale = state.chart.scales.x;
+        const labels = getXAxisLabels();
+        const canvasOffset = elements.chartCanvas.offsetLeft;
+        const logoScale = chartWidth / chartWrapperRect.width;
+        const logoSize = 80 * state.scaleFactor * logoScale;
+        const logoY = chartY + (chartArea.bottom + 10 * state.scaleFactor) * logoScale;
+
+        for (let i = 0; i < labels.length; i++) {
+            const label = labels[i];
+            const logoImg = state.logoImages[label];
+            const xPos = (xAxisScale.getPixelForValue(i) + canvasOffset) * logoScale;
+            const logoX = chartX + xPos - logoSize / 2;
+
+            if (logoImg) {
+                ctx.drawImage(logoImg, logoX, logoY, logoSize, logoSize);
+            } else {
+                ctx.font = `400 ${Math.round(12 * state.scaleFactor * logoScale)}px "Roobert VRT", sans-serif`;
+                ctx.fillStyle = '#666666';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(label, chartX + xPos, logoY + logoSize / 2);
+            }
+        }
+    }
+
+    // Draw source
+    const sourceSize = Math.round(16 * scale);
+    ctx.font = `400 ${sourceSize}px "Roobert VRT", sans-serif`;
+    ctx.fillStyle = '#666666';
+    const source = elements.chartSource.textContent || '';
+    if (source) {
+        ctx.fillText(source, panelX + panelWidth / 2, panelY + panelHeight - paddingV - sourceSize);
+    }
+
+    ctx.restore();
+    return canvas;
+}
+
+function createFallbackCanvas() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1920;
+    canvas.height = 1080;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, 1920, 1080);
+    ctx.drawImage(elements.chartCanvas, 0, 0, 1920, 1080);
+    return canvas;
 }
 
 // Export video with WebCodecs + mp4-muxer
@@ -1490,30 +1591,47 @@ async function exportVideo(format) {
         tempCanvas.height = videoHeight;
         const tempCtx = tempCanvas.getContext('2d');
 
+        // Check if we have a video background (needs per-frame capture) or static image
+        const bgVideo = elements.previewBackground.querySelector('video');
+        const hasVideoBackground = bgVideo && !bgVideo.paused;
+
+        // Pre-capture static background if no video
+        let staticBgCanvas = null;
+        if (!hasVideoBackground) {
+            staticBgCanvas = await captureBackground();
+        }
+
         // Capture and encode frames
         for (let i = 0; i < totalFrames; i++) {
-            // Update animation state - account for export start time
+            // Update animation state
             const currentExportTime = exportStartTime + (i / fps);
             state.currentFrame = Math.floor((currentExportTime / state.totalDuration) * getTotalFrames());
+
+            // Sync video background if present
+            if (hasVideoBackground) {
+                bgVideo.currentTime = currentExportTime;
+                await new Promise(r => { bgVideo.onseeked = r; setTimeout(r, 100); });
+            }
+
+            // Update chart and UI
             updateTimelineDisplay();
             animateChart();
 
-            // Force chart to render synchronously
+            // Force chart render
             if (state.chart) {
                 state.chart.render();
             }
 
-            // Force browser reflow to ensure DOM is updated
-            void elements.chartContainer.offsetHeight;
-
-            // Wait for rendering to complete (longer wait for html2canvas)
-            await new Promise(r => setTimeout(r, 50));
+            // Brief wait for render
             await new Promise(r => requestAnimationFrame(r));
 
-            // Capture frame
-            const frameCanvas = await captureFrame(false);
+            // Capture background (video frame or cached static)
+            const bgCanvas = hasVideoBackground ? await captureBackground() : staticBgCanvas;
 
-            // Draw to temp canvas at exact output size
+            // Capture frame using optimized video method
+            const frameCanvas = await captureFrameVideo(bgCanvas);
+
+            // Draw to temp canvas
             tempCtx.drawImage(frameCanvas, 0, 0, videoWidth, videoHeight);
 
             // Create VideoFrame and encode
