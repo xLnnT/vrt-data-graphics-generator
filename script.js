@@ -1498,8 +1498,17 @@ async function exportVideo(format) {
             updateTimelineDisplay();
             animateChart();
 
-            // Wait for Chart.js to fully render (two frames to ensure complete render)
-            await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+            // Force chart to render synchronously
+            if (state.chart) {
+                state.chart.render();
+            }
+
+            // Force browser reflow to ensure DOM is updated
+            void elements.chartContainer.offsetHeight;
+
+            // Wait for rendering to complete (longer wait for html2canvas)
+            await new Promise(r => setTimeout(r, 50));
+            await new Promise(r => requestAnimationFrame(r));
 
             // Capture frame
             const frameCanvas = await captureFrame(false);
