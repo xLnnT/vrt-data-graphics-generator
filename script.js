@@ -1511,11 +1511,33 @@ async function exportVideo(format) {
         tempCanvas.height = videoHeight;
         const tempCtx = tempCanvas.getContext('2d');
 
+        // Check for video background
+        const bgVideo = elements.previewBackground.querySelector('video');
+        if (bgVideo) {
+            bgVideo.pause(); // Pause for manual seeking
+        }
+
         // Capture and encode frames
         for (let i = 0; i < totalFrames; i++) {
             // Update animation state - account for export start time
             const currentExportTime = exportStartTime + (i / fps);
             state.currentFrame = Math.floor((currentExportTime / state.totalDuration) * getTotalFrames());
+
+            // Sync background video to current export time
+            if (bgVideo && bgVideo.readyState >= 2) {
+                bgVideo.currentTime = currentExportTime;
+                // Wait for video to seek to the correct frame
+                await new Promise(resolve => {
+                    const onSeeked = () => {
+                        bgVideo.removeEventListener('seeked', onSeeked);
+                        resolve();
+                    };
+                    bgVideo.addEventListener('seeked', onSeeked);
+                    // Timeout fallback in case seeked event doesn't fire
+                    setTimeout(resolve, 100);
+                });
+            }
+
             updateTimelineDisplay();
             animateChart();
 
@@ -1576,6 +1598,12 @@ async function exportVideo(format) {
         state.currentFrame = savedFrame;
         updateTimelineDisplay();
         animateChart();
+
+        // Restore video position
+        if (bgVideo) {
+            const restoredTime = (savedFrame / getTotalFrames()) * state.totalDuration;
+            bgVideo.currentTime = restoredTime;
+        }
 
         hideExportProgress();
 
