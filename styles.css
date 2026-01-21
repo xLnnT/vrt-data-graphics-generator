@@ -96,6 +96,8 @@ body {
     flex-direction: column;
     min-height: 100vh;
     padding: 16px;
+    max-width: 1920px;
+    margin: 0 auto;
 }
 
 /* Header */
@@ -507,7 +509,11 @@ body {
     display: flex;
     flex-direction: column;
     align-items: stretch;
+    justify-content: center;
     height: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
 }
 
 .preview-area {
