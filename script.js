@@ -29,7 +29,7 @@ function cacheElements() {
     elements = {
         chartType: $('chartType'), position: $('position'), panelWidth: $('panelWidth'), barWidth: $('barWidth'),
         primaryColor: $('primaryColor'), secondaryColor: $('secondaryColor'), highlightColor: $('highlightColor'),
-        showText: $('showText'), showLogos: $('showLogos'), logoOptions: $('logoOptions'),
+        showText: $('showText'), showLogos: $('showLogos'), showValues: $('showValues'), logoOptions: $('logoOptions'),
         partyRegion: $('partyRegion'), monoLogos: $('monoLogos'),
         uploadArea: $('uploadArea'), fileInput: $('fileInput'),
         graphIn: $('graphIn'), graphOut: $('graphOut'),
@@ -325,6 +325,96 @@ function updateLogoPositions() {
 
 function removeLogos() {
     document.getElementById('xAxisLogos')?.remove();
+}
+
+function updateValueLabels() {
+    removeValueLabels();
+    if (!state.chart || !elements.showValues.checked) return;
+
+    const { scaleFactor } = state;
+    const chartArea = state.chart.chartArea;
+    const xScale = state.chart.scales.x;
+    const yScale = state.chart.scales.y;
+    const data = state.chart.data.datasets[0].data;
+    const labels = getXAxisLabels();
+    const originalData = getYAxisData();
+    const canvasOffset = elements.chartCanvas.offsetLeft;
+
+    const container = document.createElement('div');
+    container.id = 'barValueLabels';
+    container.style.cssText = 'position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none;z-index:15';
+
+    labels.forEach((label, index) => {
+        const xPos = xScale.getPixelForValue(index) + canvasOffset;
+        const yPos = yScale.getPixelForValue(data[index] || 0);
+
+        const valueLabel = document.createElement('div');
+        valueLabel.className = 'bar-value-label';
+        valueLabel.dataset.index = index;
+        valueLabel.textContent = originalData[index];
+        valueLabel.style.cssText = `position:absolute;left:${xPos}px;top:${yPos - 10 * scaleFactor}px;transform:translate(-50%,-100%) translateY(50px);opacity:0;font-size:${24 * scaleFactor}px;font-weight:600;color:#031037;font-family:'Roobert VRT',sans-serif;text-align:center;white-space:nowrap`;
+        container.appendChild(valueLabel);
+    });
+
+    elements.chartWrapper.style.position = 'relative';
+    elements.chartWrapper.appendChild(container);
+}
+
+function removeValueLabels() {
+    document.getElementById('barValueLabels')?.remove();
+}
+
+function updateValueLabelPositions(animatedData) {
+    let container = document.getElementById('barValueLabels');
+    if (!container) {
+        updateValueLabels();
+        container = document.getElementById('barValueLabels');
+        if (!container) return;
+    }
+
+    const { scaleFactor } = state;
+    const xScale = state.chart.scales.x;
+    const yScale = state.chart.scales.y;
+    const canvasOffset = elements.chartCanvas.offsetLeft;
+    const labels = container.querySelectorAll('.bar-value-label');
+
+    labels.forEach((label, index) => {
+        const xPos = xScale.getPixelForValue(index) + canvasOffset;
+        const yPos = yScale.getPixelForValue(animatedData[index] || 0);
+        label.style.left = `${xPos}px`;
+        label.style.top = `${yPos - 10 * scaleFactor}px`;
+    });
+}
+
+function animateValueLabels(barProgresses, graphOutTime, currentTime) {
+    const container = document.getElementById('barValueLabels');
+    if (!container) return;
+
+    const labels = container.querySelectorAll('.bar-value-label');
+    const labelDelay = 0.1;
+
+    labels.forEach((label, index) => {
+        const barStartTime = state.barTimings[index] || 0;
+        const labelStartTime = barStartTime + labelDelay;
+        const labelInEnd = labelStartTime + PANEL_ANIMATION_DURATION;
+
+        let labelProgress = 0;
+        if (currentTime < labelStartTime) {
+            labelProgress = 0;
+        } else if (currentTime < labelInEnd) {
+            const t = (currentTime - labelStartTime) / PANEL_ANIMATION_DURATION;
+            labelProgress = cubicBezier(t, PANEL_EASING.cp1x, PANEL_EASING.cp1y, PANEL_EASING.cp2x, PANEL_EASING.cp2y);
+        } else if (currentTime < graphOutTime) {
+            labelProgress = 1;
+        } else {
+            labelProgress = 1 - ((currentTime - graphOutTime) / PANEL_ANIMATION_DURATION);
+        }
+        labelProgress = Math.max(0, Math.min(1, labelProgress));
+
+        const offset = (1 - labelProgress) * 50;
+        label.style.transform = `translate(-50%,-100%) translateY(${offset}px)`;
+        label.style.opacity = labelProgress;
+    });
 }
 
 async function updateXAxisDisplay() {
@@ -1179,32 +1269,36 @@ function animateChart() {
     }
 
     // Calculate progress for each bar individually
+    const barProgresses = [];
     const animatedData = originalData.map((val, index) => {
         const barStartTime = state.barTimings[index] || (graphInTime + 0.5 + index * DEFAULT_STAGGER);
 
         let barProgress = 0;
         if (currentTime < barStartTime) {
-            // Before this bar starts
             barProgress = 0;
         } else if (currentTime < barStartTime + BAR_ANIMATION_DURATION) {
-            // During this bar's animation
             barProgress = (currentTime - barStartTime) / BAR_ANIMATION_DURATION;
         } else if (currentTime < graphOutTime) {
-            // Fully visible
             barProgress = 1;
         } else {
-            // After graphOut - all bars animate out together
             barProgress = 1 - ((currentTime - graphOutTime) / PANEL_ANIMATION_DURATION);
         }
 
         barProgress = Math.max(0, Math.min(1, barProgress));
         barProgress = cubicBezier(barProgress, state.easingPoints.cp1x, state.easingPoints.cp1y, state.easingPoints.cp2x, state.easingPoints.cp2y);
+        barProgresses.push(barProgress);
 
         return val * barProgress;
     });
 
     state.chart.data.datasets[0].data = animatedData;
     state.chart.update('none');
+
+    // Update value labels position and animation
+    if (elements.showValues.checked) {
+        updateValueLabelPositions(animatedData);
+        animateValueLabels(barProgresses, graphOutTime, currentTime);
+    }
 }
 
 function cubicBezier(t, x1, y1, x2, y2) {
@@ -1895,6 +1989,7 @@ function initEventListeners() {
 
     elements.showText.addEventListener('change', handleTextLogoToggle);
     elements.showLogos.addEventListener('change', handleTextLogoToggle);
+    elements.showValues.addEventListener('change', () => { elements.showValues.checked ? updateValueLabels() : removeValueLabels(); animateChart(); });
     elements.partyRegion.addEventListener('change', async () => { await loadLogos(); state.chart?.update(); updateLogoPositions(); });
     elements.monoLogos.addEventListener('change', async () => { await loadLogos(); state.chart?.update(); updateLogoPositions(); });
 
