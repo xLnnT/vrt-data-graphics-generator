@@ -137,7 +137,9 @@ function initChart() {
                     ticks: {
                         color: '#000000',
                         font: { size: 18, family: 'Roobert VRT', weight: '400' },
-                        padding: 15
+                        padding: 15,
+                        maxRotation: 0,
+                        minRotation: 0
                     }
                 },
                 y: {
@@ -492,14 +494,16 @@ async function handleTextLogoToggle(e) {
         // Text enabled - disable logos
         elements.showLogos.checked = false;
         elements.logoOptions.style.display = 'none';
+        removeLogos();
         if (state.chart) {
             state.chart.options.scales.x.ticks.display = true;
+            state.chart.options.scales.x.ticks.maxRotation = 0;
+            state.chart.options.scales.x.ticks.minRotation = 0;
             if (state.chart.options.layout?.padding) {
-                state.chart.options.layout.padding.bottom = 0;
+                state.chart.options.layout.padding.bottom = 10;
             }
             state.chart.update();
         }
-        removeLogos();
     } else if (isLogosCheckbox && checkbox.checked) {
         // Logos enabled - disable text, load and show logos
         elements.showText.checked = false;
@@ -529,8 +533,10 @@ async function handleTextLogoToggle(e) {
         removeLogos();
         if (state.chart) {
             state.chart.options.scales.x.ticks.display = true;
+            state.chart.options.scales.x.ticks.maxRotation = 0;
+            state.chart.options.scales.x.ticks.minRotation = 0;
             if (state.chart.options.layout?.padding) {
-                state.chart.options.layout.padding.bottom = 0;
+                state.chart.options.layout.padding.bottom = 10;
             }
             state.chart.update();
         }
@@ -2013,12 +2019,11 @@ function initEventListeners() {
     elements.titleInput.addEventListener('input', debouncedTitleUpdate);
     elements.subtitleInput.addEventListener('input', debouncedTitleUpdate);
     elements.sourceInput.addEventListener('input', debouncedTitleUpdate);
-    elements.xAxisInput.addEventListener('input', async () => {
+    elements.xAxisInput.addEventListener('input', () => {
+        updateChart({ skipLogoUpdate: true });
+        initializeBarTimings();
         if (elements.showLogos.checked) {
-            updateChart();
-            await updateXAxisDisplay();
-        } else {
-            debouncedAxisUpdate();
+            scheduleUpdate(() => updateXAxisDisplay());
         }
     });
     elements.yAxisInput.addEventListener('input', debouncedChartUpdate);
