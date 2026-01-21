@@ -1582,25 +1582,35 @@ async function exportVideo(format) {
         // Initialize AudioEncoder if we have audio
         let audioEncoder = null;
         let audioChunksEncoded = 0;
-        if (audioBuffer) {
+        if (audioBuffer && typeof AudioEncoder !== 'undefined') {
             try {
-                audioEncoder = new AudioEncoder({
-                    output: (chunk, meta) => {
-                        muxer.addAudioChunk(chunk, meta);
-                        audioChunksEncoded++;
-                    },
-                    error: e => {
-                        console.error('Audio encoder error:', e);
-                    }
-                });
-
-                audioEncoder.configure({
+                const audioConfig = {
                     codec: 'aac',
                     numberOfChannels: audioBuffer.numberOfChannels,
                     sampleRate: audioBuffer.sampleRate,
                     bitrate: 128000
-                });
-                console.log('AudioEncoder configured:', audioBuffer.numberOfChannels, 'ch,', audioBuffer.sampleRate, 'Hz');
+                };
+
+                // Check if the configuration is supported
+                const support = await AudioEncoder.isConfigSupported(audioConfig);
+                console.log('AudioEncoder config support:', support);
+
+                if (support.supported) {
+                    audioEncoder = new AudioEncoder({
+                        output: (chunk, meta) => {
+                            muxer.addAudioChunk(chunk, meta);
+                            audioChunksEncoded++;
+                        },
+                        error: e => {
+                            console.error('Audio encoder error:', e);
+                        }
+                    });
+
+                    audioEncoder.configure(support.config);
+                    console.log('AudioEncoder configured:', audioBuffer.numberOfChannels, 'ch,', audioBuffer.sampleRate, 'Hz, state:', audioEncoder.state);
+                } else {
+                    console.warn('AAC audio encoding not supported by browser');
+                }
             } catch (e) {
                 console.error('Failed to initialize AudioEncoder:', e);
                 audioEncoder = null;
@@ -1704,59 +1714,82 @@ async function exportVideo(format) {
         videoEncoder.close();
 
         // Encode audio if available
-        if (audioEncoder && audioBuffer) {
+        if (audioEncoder && audioBuffer && audioEncoder.state === 'configured') {
             showExportProgress('Audio encoderen...', 92);
 
-            const sampleRate = audioBuffer.sampleRate;
-            const numberOfChannels = audioBuffer.numberOfChannels;
+            try {
+                const sampleRate = audioBuffer.sampleRate;
+                const numberOfChannels = audioBuffer.numberOfChannels;
 
-            // Calculate sample range for export
-            const startSample = Math.floor(exportStartTime * sampleRate);
-            const endSample = Math.min(
-                Math.floor(exportEndTime * sampleRate),
-                audioBuffer.length
-            );
-            const totalSamples = endSample - startSample;
+                // Calculate sample range for export
+                const startSample = Math.floor(exportStartTime * sampleRate);
+                const endSample = Math.min(
+                    Math.floor(exportEndTime * sampleRate),
+                    audioBuffer.length
+                );
+                const totalSamples = endSample - startSample;
 
-            if (totalSamples > 0) {
-                // Process audio in chunks (1024 samples per chunk is common)
-                const chunkSize = 1024;
-                const numChunks = Math.ceil(totalSamples / chunkSize);
+                console.log('Audio encoding:', totalSamples, 'samples from', startSample, 'to', endSample);
 
-                for (let chunkIndex = 0; chunkIndex < numChunks; chunkIndex++) {
-                    const chunkStart = startSample + (chunkIndex * chunkSize);
-                    const chunkEnd = Math.min(chunkStart + chunkSize, endSample);
-                    const actualChunkSize = chunkEnd - chunkStart;
+                if (totalSamples > 0) {
+                    // Process audio in larger chunks for better performance
+                    const chunkSize = 4096;
+                    const numChunks = Math.ceil(totalSamples / chunkSize);
 
-                    // Create planar audio data (each channel's samples are contiguous)
-                    const audioData = new Float32Array(actualChunkSize * numberOfChannels);
+                    for (let chunkIndex = 0; chunkIndex < numChunks; chunkIndex++) {
+                        // Check encoder state before each encode
+                        if (audioEncoder.state !== 'configured') {
+                            console.warn('AudioEncoder state changed to:', audioEncoder.state);
+                            break;
+                        }
 
-                    for (let channel = 0; channel < numberOfChannels; channel++) {
-                        const channelData = audioBuffer.getChannelData(channel);
-                        const offset = channel * actualChunkSize;
-                        for (let i = 0; i < actualChunkSize; i++) {
-                            audioData[offset + i] = channelData[chunkStart + i];
+                        const chunkStart = startSample + (chunkIndex * chunkSize);
+                        const chunkEnd = Math.min(chunkStart + chunkSize, endSample);
+                        const actualChunkSize = chunkEnd - chunkStart;
+
+                        // Create planar audio data (each channel's samples are contiguous)
+                        const audioData = new Float32Array(actualChunkSize * numberOfChannels);
+
+                        for (let channel = 0; channel < numberOfChannels; channel++) {
+                            const channelData = audioBuffer.getChannelData(channel);
+                            const offset = channel * actualChunkSize;
+                            for (let i = 0; i < actualChunkSize; i++) {
+                                audioData[offset + i] = channelData[chunkStart + i];
+                            }
+                        }
+
+                        // Create AudioData and encode
+                        const audioDataObj = new AudioData({
+                            format: 'f32-planar',
+                            sampleRate: sampleRate,
+                            numberOfFrames: actualChunkSize,
+                            numberOfChannels: numberOfChannels,
+                            timestamp: ((chunkIndex * chunkSize) * 1_000_000) / sampleRate,
+                            data: audioData
+                        });
+
+                        audioEncoder.encode(audioDataObj);
+                        audioDataObj.close();
+
+                        // Allow UI updates periodically
+                        if (chunkIndex % 100 === 0) {
+                            await new Promise(r => setTimeout(r, 0));
                         }
                     }
 
-                    // Create AudioData and encode
-                    const audioDataObj = new AudioData({
-                        format: 'f32-planar',
-                        sampleRate: sampleRate,
-                        numberOfFrames: actualChunkSize,
-                        numberOfChannels: numberOfChannels,
-                        timestamp: (chunkIndex * chunkSize * 1_000_000) / sampleRate,
-                        data: audioData
-                    });
-
-                    audioEncoder.encode(audioDataObj);
-                    audioDataObj.close();
+                    if (audioEncoder.state === 'configured') {
+                        await audioEncoder.flush();
+                        console.log('Audio encoding complete:', audioChunksEncoded, 'chunks encoded');
+                    }
                 }
 
-                await audioEncoder.flush();
-                console.log('Audio encoding complete:', audioChunksEncoded, 'chunks encoded');
+                if (audioEncoder.state !== 'closed') {
+                    audioEncoder.close();
+                }
+            } catch (audioError) {
+                console.error('Audio encoding failed:', audioError);
+                // Continue without audio
             }
-            audioEncoder.close();
         }
 
         showExportProgress('Video finaliseren...', 95);
