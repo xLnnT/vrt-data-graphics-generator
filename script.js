@@ -1868,6 +1868,212 @@ async function exportVideo(format) {
     isExporting = false;
 }
 
+// Export video with audio using MediaRecorder (real-time recording)
+async function exportVideoWithMediaRecorder(format) {
+    if (isExporting) {
+        alert('Export is al bezig. Even geduld.');
+        return;
+    }
+
+    isExporting = true;
+    showExportProgress('Video met audio voorbereiden...', 0);
+
+    try {
+        const fps = 25;
+        const exportStartTime = parseFloat(elements.exportStart.value) || 0;
+        const exportEndTime = parseFloat(elements.exportEnd.value) || state.totalDuration;
+        const exportDuration = Math.max(0, exportEndTime - exportStartTime);
+
+        if (exportDuration <= 0) {
+            alert('Ongeldige export range.');
+            isExporting = false;
+            hideExportProgress();
+            return;
+        }
+
+        // Save current state
+        const savedFrame = state.currentFrame;
+        const wasPlaying = state.isPlaying;
+        if (wasPlaying) {
+            togglePlayback();
+        }
+
+        // Create offscreen canvas for recording
+        const recordCanvas = document.createElement('canvas');
+        recordCanvas.width = 1920;
+        recordCanvas.height = 1080;
+        const recordCtx = recordCanvas.getContext('2d');
+
+        // Get canvas stream
+        const canvasStream = recordCanvas.captureStream(fps);
+
+        // Get audio from video if available
+        const bgVideo = elements.previewBackground.querySelector('video');
+        let combinedStream = canvasStream;
+
+        if (bgVideo && state.uploadedFile) {
+            // Create a new video element for audio capture
+            const audioVideo = document.createElement('video');
+            audioVideo.src = URL.createObjectURL(state.uploadedFile);
+            audioVideo.muted = false;
+            audioVideo.volume = 1;
+
+            await new Promise((resolve, reject) => {
+                audioVideo.onloadedmetadata = resolve;
+                audioVideo.onerror = reject;
+                setTimeout(reject, 5000);
+            });
+
+            // Capture audio stream from the video
+            let audioStream = null;
+            if (audioVideo.captureStream) {
+                const videoStream = audioVideo.captureStream();
+                const audioTracks = videoStream.getAudioTracks();
+                if (audioTracks.length > 0) {
+                    audioStream = new MediaStream(audioTracks);
+                    console.log('Audio track captured from video');
+                }
+            }
+
+            if (audioStream) {
+                // Combine canvas video with audio
+                combinedStream = new MediaStream([
+                    ...canvasStream.getVideoTracks(),
+                    ...audioStream.getAudioTracks()
+                ]);
+            }
+
+            // Set up audio video for synchronized playback
+            audioVideo.currentTime = exportStartTime;
+            await new Promise(r => { audioVideo.onseeked = r; });
+
+            // Store for later use
+            recordCanvas._audioVideo = audioVideo;
+        }
+
+        // Set up MediaRecorder
+        const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
+            ? 'video/webm;codecs=vp9,opus'
+            : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
+            ? 'video/webm;codecs=vp8,opus'
+            : 'video/webm';
+
+        console.log('Using MIME type:', mimeType);
+
+        const mediaRecorder = new MediaRecorder(combinedStream, {
+            mimeType,
+            videoBitsPerSecond: 8000000
+        });
+
+        const chunks = [];
+        mediaRecorder.ondataavailable = e => {
+            if (e.data.size > 0) chunks.push(e.data);
+        };
+
+        // Promise for recording completion
+        const recordingComplete = new Promise(resolve => {
+            mediaRecorder.onstop = resolve;
+        });
+
+        // Start recording
+        mediaRecorder.start(100); // Collect data every 100ms
+
+        // Start audio playback if available
+        const audioVideo = recordCanvas._audioVideo;
+        if (audioVideo) {
+            audioVideo.play();
+        }
+
+        showExportProgress('Opnemen... (real-time)', 5);
+
+        // Animate and capture frames in real-time
+        const startRealTime = performance.now();
+        let lastFrameTime = startRealTime;
+
+        const animate = async () => {
+            const elapsed = (performance.now() - startRealTime) / 1000;
+            const currentExportTime = exportStartTime + elapsed;
+
+            if (currentExportTime >= exportEndTime) {
+                // Stop recording
+                mediaRecorder.stop();
+                if (audioVideo) {
+                    audioVideo.pause();
+                    URL.revokeObjectURL(audioVideo.src);
+                }
+                return;
+            }
+
+            // Update animation state
+            state.currentFrame = Math.floor((currentExportTime / state.totalDuration) * getTotalFrames());
+            updateTimelineDisplay();
+            animateChart();
+
+            // Sync background video
+            if (bgVideo) {
+                bgVideo.currentTime = currentExportTime;
+            }
+
+            // Wait for any async operations
+            await new Promise(r => requestAnimationFrame(r));
+
+            // Capture frame to record canvas
+            const frameCanvas = await captureFrame(false);
+            recordCtx.drawImage(frameCanvas, 0, 0, 1920, 1080);
+
+            // Update progress
+            const progress = 5 + (elapsed / exportDuration) * 90;
+            showExportProgress(`Opnemen... ${Math.floor(elapsed)}/${Math.floor(exportDuration)} sec`, progress);
+
+            // Continue animation
+            requestAnimationFrame(animate);
+        };
+
+        // Start animation loop
+        animate();
+
+        // Wait for recording to complete
+        await recordingComplete;
+
+        showExportProgress('Video verwerken...', 95);
+
+        // Create blob and download
+        const blob = new Blob(chunks, { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'vrt-graphic.webm'; // WebM format for MediaRecorder
+        link.click();
+
+        URL.revokeObjectURL(url);
+
+        // Restore state
+        state.currentFrame = savedFrame;
+        updateTimelineDisplay();
+        animateChart();
+
+        if (bgVideo) {
+            bgVideo.currentTime = (savedFrame / getTotalFrames()) * state.totalDuration;
+        }
+
+        hideExportProgress();
+
+        if (wasPlaying) {
+            togglePlayback();
+        }
+
+        // Inform user about format
+        alert('Video geëxporteerd als WebM formaat (met audio). Voor MP4 conversie, gebruik een video converter.');
+
+    } catch (error) {
+        console.error('MediaRecorder export failed:', error);
+        alert(`Export mislukt: ${error.message}`);
+        hideExportProgress();
+    }
+
+    isExporting = false;
+}
+
 // Cache for last successful video frame (prevents black flicker)
 let lastVideoFrameCanvas = null;
 
@@ -1983,8 +2189,14 @@ async function createGlassEffect(backgroundCanvas, containerRect, previewRect) {
 
 // Main export handler
 async function handleExport(format) {
-    // Video formats use WebCodecs + mp4-muxer
-    if (['mp4-audio', 'mp4-noaudio', 'mov-alpha'].includes(format)) {
+    // MP4 with audio uses MediaRecorder (real-time recording with audio)
+    if (format === 'mp4-audio') {
+        await exportVideoWithMediaRecorder(format);
+        return;
+    }
+
+    // Video formats without audio use WebCodecs + mp4-muxer (faster)
+    if (['mp4-noaudio', 'mov-alpha'].includes(format)) {
         await exportVideo(format);
         return;
     }
