@@ -2013,7 +2013,14 @@ function initEventListeners() {
     elements.titleInput.addEventListener('input', debouncedTitleUpdate);
     elements.subtitleInput.addEventListener('input', debouncedTitleUpdate);
     elements.sourceInput.addEventListener('input', debouncedTitleUpdate);
-    elements.xAxisInput.addEventListener('input', () => { elements.showLogos.checked ? (updateChart(), updateXAxisDisplay()) : debouncedAxisUpdate(); });
+    elements.xAxisInput.addEventListener('input', async () => {
+        if (elements.showLogos.checked) {
+            updateChart();
+            await updateXAxisDisplay();
+        } else {
+            debouncedAxisUpdate();
+        }
+    });
     elements.yAxisInput.addEventListener('input', debouncedChartUpdate);
 
     elements.playBtn.addEventListener('click', togglePlayback);
