@@ -391,7 +391,7 @@ function animateValueLabels(barProgresses, graphOutTime, currentTime) {
     if (!container) return;
 
     const labels = container.querySelectorAll('.bar-value-label');
-    const labelDelay = 0.1;
+    const labelDelay = 0.4;
 
     labels.forEach((label, index) => {
         const barStartTime = state.barTimings[index] || 0;
