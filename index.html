@@ -176,6 +176,20 @@
                         <div class="chart-source" id="chartSource"></div>
                     </div>
                 </div>
+                <!-- Timeline -->
+                <div class="timeline">
+                    <button class="play-btn" id="playBtn">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                    </button>
+                    <span class="time-display" id="currentTime">0:00</span>
+                    <div class="timeline-track">
+                        <div class="timeline-progress" id="timelineProgress"></div>
+                        <div class="timeline-thumb" id="timelineThumb"></div>
+                    </div>
+                    <span class="time-display" id="totalTime">20:00</span>
+                </div>
             </div>
 
             <!-- Right Sidebar -->
@@ -267,21 +281,6 @@
                 </section>
             </aside>
         </main>
-
-        <!-- Timeline -->
-        <footer class="timeline">
-            <button class="play-btn" id="playBtn">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                </svg>
-            </button>
-            <span class="time-display" id="currentTime">0:00</span>
-            <div class="timeline-track">
-                <div class="timeline-progress" id="timelineProgress"></div>
-                <div class="timeline-thumb" id="timelineThumb"></div>
-            </div>
-            <span class="time-display" id="totalTime">20:00</span>
-        </footer>
 
         <!-- Credits -->
         <div class="credits">
