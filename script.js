@@ -1582,20 +1582,49 @@ async function exportVideo(format) {
         // Initialize AudioEncoder if we have audio
         let audioEncoder = null;
         let audioChunksEncoded = 0;
+        let audioCodecUsed = null;
         if (audioBuffer && typeof AudioEncoder !== 'undefined') {
             try {
-                const audioConfig = {
-                    codec: 'aac',
-                    numberOfChannels: audioBuffer.numberOfChannels,
-                    sampleRate: audioBuffer.sampleRate,
-                    bitrate: 128000
-                };
+                // Try different audio codecs in order of preference
+                const codecsToTry = [
+                    { codec: 'mp4a.40.2', name: 'AAC-LC' },  // AAC-LC specific
+                    { codec: 'aac', name: 'AAC' },
+                    { codec: 'opus', name: 'Opus' }
+                ];
 
-                // Check if the configuration is supported
-                const support = await AudioEncoder.isConfigSupported(audioConfig);
-                console.log('AudioEncoder config support:', support);
+                let supportedConfig = null;
+                for (const codecInfo of codecsToTry) {
+                    const audioConfig = {
+                        codec: codecInfo.codec,
+                        numberOfChannels: audioBuffer.numberOfChannels,
+                        sampleRate: audioBuffer.sampleRate,
+                        bitrate: 128000
+                    };
 
-                if (support.supported) {
+                    try {
+                        const support = await AudioEncoder.isConfigSupported(audioConfig);
+                        console.log(`AudioEncoder ${codecInfo.name} support:`, support.supported);
+                        if (support.supported) {
+                            supportedConfig = support.config;
+                            audioCodecUsed = codecInfo.codec;
+                            console.log(`Using audio codec: ${codecInfo.name}`);
+                            break;
+                        }
+                    } catch (e) {
+                        console.log(`Codec ${codecInfo.name} check failed:`, e.message);
+                    }
+                }
+
+                if (supportedConfig) {
+                    // Update muxer audio config if using opus (requires different container handling)
+                    // For now, only use AAC variants for MP4 compatibility
+                    if (audioCodecUsed === 'opus') {
+                        console.warn('Opus not compatible with MP4, skipping audio');
+                        supportedConfig = null;
+                    }
+                }
+
+                if (supportedConfig) {
                     audioEncoder = new AudioEncoder({
                         output: (chunk, meta) => {
                             muxer.addAudioChunk(chunk, meta);
@@ -1606,10 +1635,10 @@ async function exportVideo(format) {
                         }
                     });
 
-                    audioEncoder.configure(support.config);
+                    audioEncoder.configure(supportedConfig);
                     console.log('AudioEncoder configured:', audioBuffer.numberOfChannels, 'ch,', audioBuffer.sampleRate, 'Hz, state:', audioEncoder.state);
                 } else {
-                    console.warn('AAC audio encoding not supported by browser');
+                    console.warn('No compatible audio codec found for MP4 export');
                 }
             } catch (e) {
                 console.error('Failed to initialize AudioEncoder:', e);
