@@ -1506,10 +1506,32 @@ async function exportVideo(format) {
             togglePlayback();
         }
 
-        // Initialize mp4-muxer
+        // Check for audio support
+        const includeAudio = format === 'mp4-audio';
+        const bgVideo = elements.previewBackground.querySelector('video');
+        let audioContext = null;
+        let audioBuffer = null;
+
+        // Extract audio from video if needed
+        if (includeAudio && bgVideo && state.uploadedFile) {
+            showExportProgress('Audio extraheren...', 0);
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const response = await fetch(bgVideo.src);
+                const arrayBuffer = await response.arrayBuffer();
+                audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            } catch (audioError) {
+                console.warn('Could not extract audio:', audioError);
+                // Continue without audio
+                audioBuffer = null;
+            }
+        }
+
+        // Initialize mp4-muxer with optional audio
         const { Muxer, ArrayBufferTarget } = Mp4Muxer;
         const target = new ArrayBufferTarget();
-        const muxer = new Muxer({
+
+        const muxerConfig = {
             target,
             video: {
                 codec: 'avc',
@@ -1518,7 +1540,18 @@ async function exportVideo(format) {
             },
             fastStart: 'in-memory',
             firstTimestampBehavior: 'offset'
-        });
+        };
+
+        // Add audio config if we have audio
+        if (audioBuffer) {
+            muxerConfig.audio = {
+                codec: 'aac',
+                numberOfChannels: audioBuffer.numberOfChannels,
+                sampleRate: audioBuffer.sampleRate
+            };
+        }
+
+        const muxer = new Muxer(muxerConfig);
 
         // Initialize VideoEncoder
         let encodedFrames = 0;
@@ -1541,6 +1574,26 @@ async function exportVideo(format) {
             framerate: fps
         });
 
+        // Initialize AudioEncoder if we have audio
+        let audioEncoder = null;
+        if (audioBuffer) {
+            audioEncoder = new AudioEncoder({
+                output: (chunk, meta) => {
+                    muxer.addAudioChunk(chunk, meta);
+                },
+                error: e => {
+                    console.error('Audio encoder error:', e);
+                }
+            });
+
+            audioEncoder.configure({
+                codec: 'aac',
+                numberOfChannels: audioBuffer.numberOfChannels,
+                sampleRate: audioBuffer.sampleRate,
+                bitrate: 128000
+            });
+        }
+
         showExportProgress('Frames opnemen en encoderen...', 0);
 
         // Create offscreen canvas for rendering
@@ -1549,10 +1602,9 @@ async function exportVideo(format) {
         tempCanvas.height = videoHeight;
         const tempCtx = tempCanvas.getContext('2d');
 
-        // Check for video background
-        const bgVideo = elements.previewBackground.querySelector('video');
+        // Pause video for manual seeking
         if (bgVideo) {
-            bgVideo.pause(); // Pause for manual seeking
+            bgVideo.pause();
         }
 
         // Capture and encode frames
@@ -1634,11 +1686,71 @@ async function exportVideo(format) {
             showExportProgress(`Frames verwerken... (${i + 1}/${totalFrames})`, percent);
         }
 
-        // Wait for encoder to finish
+        // Wait for video encoder to finish
         await videoEncoder.flush();
         videoEncoder.close();
 
+        // Encode audio if available
+        if (audioEncoder && audioBuffer) {
+            showExportProgress('Audio encoderen...', 92);
+
+            const sampleRate = audioBuffer.sampleRate;
+            const numberOfChannels = audioBuffer.numberOfChannels;
+
+            // Calculate sample range for export
+            const startSample = Math.floor(exportStartTime * sampleRate);
+            const endSample = Math.min(
+                Math.floor(exportEndTime * sampleRate),
+                audioBuffer.length
+            );
+            const totalSamples = endSample - startSample;
+
+            if (totalSamples > 0) {
+                // Process audio in chunks (1024 samples per chunk is common)
+                const chunkSize = 1024;
+                const numChunks = Math.ceil(totalSamples / chunkSize);
+
+                for (let chunkIndex = 0; chunkIndex < numChunks; chunkIndex++) {
+                    const chunkStart = startSample + (chunkIndex * chunkSize);
+                    const chunkEnd = Math.min(chunkStart + chunkSize, endSample);
+                    const actualChunkSize = chunkEnd - chunkStart;
+
+                    // Create planar audio data (each channel's samples are contiguous)
+                    const audioData = new Float32Array(actualChunkSize * numberOfChannels);
+
+                    for (let channel = 0; channel < numberOfChannels; channel++) {
+                        const channelData = audioBuffer.getChannelData(channel);
+                        const offset = channel * actualChunkSize;
+                        for (let i = 0; i < actualChunkSize; i++) {
+                            audioData[offset + i] = channelData[chunkStart + i];
+                        }
+                    }
+
+                    // Create AudioData and encode
+                    const audioDataObj = new AudioData({
+                        format: 'f32-planar',
+                        sampleRate: sampleRate,
+                        numberOfFrames: actualChunkSize,
+                        numberOfChannels: numberOfChannels,
+                        timestamp: (chunkIndex * chunkSize * 1_000_000) / sampleRate,
+                        data: audioData
+                    });
+
+                    audioEncoder.encode(audioDataObj);
+                    audioDataObj.close();
+                }
+
+                await audioEncoder.flush();
+            }
+            audioEncoder.close();
+        }
+
         showExportProgress('Video finaliseren...', 95);
+
+        // Close audio context if used
+        if (audioContext) {
+            audioContext.close();
+        }
 
         // Finalize muxer
         muxer.finalize();
