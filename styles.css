@@ -798,6 +798,63 @@ body {
     transform: translate(-50%, -50%);
     cursor: pointer;
     transition: left 0.1s;
+    z-index: 10;
+}
+
+/* Bar Timing Markers */
+.bar-timing-markers {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+}
+
+.bar-timing-marker {
+    position: absolute;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    background: var(--accent-teal);
+    border: 2px solid white;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    cursor: grab;
+    pointer-events: auto;
+    transition: transform 0.1s, box-shadow 0.1s;
+    z-index: 5;
+}
+
+.bar-timing-marker:hover {
+    transform: translate(-50%, -50%) scale(1.2);
+    box-shadow: 0 0 8px rgba(0, 190, 170, 0.6);
+}
+
+.bar-timing-marker:active {
+    cursor: grabbing;
+    transform: translate(-50%, -50%) scale(1.3);
+}
+
+.bar-timing-marker-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    margin-bottom: 8px;
+}
+
+.bar-timing-marker:hover .bar-timing-marker-tooltip {
+    opacity: 1;
 }
 
 /* Credits */

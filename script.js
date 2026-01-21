@@ -49,7 +49,9 @@ const state = {
     highlightedBars: new Set([5]),
     logoImages: {},
     logoSettings: { region: '', mono: false, labels: [] },
-    easingPoints: { cp1x: 0.90, cp1y: 0.00, cp2x: 0.30, cp2y: 1.00 }
+    easingPoints: { cp1x: 0.90, cp1y: 0.00, cp2x: 0.30, cp2y: 1.00 },
+    barTimings: [], // Array of timing values (in seconds) for each bar
+    uploadedFile: null
 };
 
 // ============================================
@@ -125,6 +127,8 @@ function cacheElements() {
         totalTime: document.getElementById('totalTime'),
         timelineProgress: document.getElementById('timelineProgress'),
         timelineThumb: document.getElementById('timelineThumb'),
+        barTimingMarkers: document.getElementById('barTimingMarkers'),
+        timelineTrack: document.querySelector('.timeline-track'),
 
         // Output
         exportStart: document.getElementById('exportStart'),
@@ -316,6 +320,9 @@ function updateChart(options = {}) {
     if (!skipLogoUpdate && elements.showLogos.checked) {
         scheduleUpdate(updateLogoPositions);
     }
+
+    // Update bar timing markers
+    updateBarTimingMarkers();
 }
 
 function handleChartClick(event, clickedElements) {
@@ -1179,6 +1186,158 @@ function updateTimelineDisplay() {
     elements.currentTime.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+// ============================================
+// BAR TIMING MARKERS
+// ============================================
+
+const BAR_ANIMATION_DURATION = 0.5; // Duration for each bar's animation
+const DEFAULT_STAGGER = 0.15; // Default stagger between bars
+
+function initializeBarTimings() {
+    const labels = getXAxisLabels();
+    const graphInTime = parseInt(elements.graphIn.value) || 1;
+    const barAnimationDelay = 0.5; // Initial delay after graphInTime
+
+    // Create default staggered timings
+    state.barTimings = labels.map((_, index) => {
+        return graphInTime + barAnimationDelay + (index * DEFAULT_STAGGER);
+    });
+
+    updateBarTimingMarkers();
+}
+
+function updateBarTimingMarkers() {
+    if (!elements.barTimingMarkers) return;
+
+    const labels = getXAxisLabels();
+    const colors = getBarColors();
+
+    // Ensure barTimings array matches data length
+    while (state.barTimings.length < labels.length) {
+        const lastTiming = state.barTimings.length > 0
+            ? state.barTimings[state.barTimings.length - 1] + DEFAULT_STAGGER
+            : (parseInt(elements.graphIn.value) || 1) + 0.5;
+        state.barTimings.push(lastTiming);
+    }
+    state.barTimings = state.barTimings.slice(0, labels.length);
+
+    // Clear existing markers
+    elements.barTimingMarkers.innerHTML = '';
+
+    // Create markers for each bar
+    labels.forEach((label, index) => {
+        const marker = document.createElement('div');
+        marker.className = 'bar-timing-marker';
+        marker.dataset.index = index;
+
+        // Position based on timing
+        const percent = (state.barTimings[index] / state.totalDuration) * 100;
+        marker.style.left = `${Math.max(0, Math.min(100, percent))}%`;
+
+        // Color to match bar (if available)
+        const color = colors[index] || '#00BEAA';
+        marker.style.backgroundColor = color;
+
+        // Tooltip
+        const tooltip = document.createElement('div');
+        tooltip.className = 'bar-timing-marker-tooltip';
+        tooltip.textContent = `${label}: ${state.barTimings[index].toFixed(2)}s`;
+        marker.appendChild(tooltip);
+
+        // Make draggable
+        setupMarkerDrag(marker, index);
+
+        elements.barTimingMarkers.appendChild(marker);
+    });
+}
+
+function setupMarkerDrag(marker, index) {
+    let isDragging = false;
+    let startX = 0;
+    let startLeft = 0;
+
+    const onMouseDown = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        isDragging = true;
+        startX = e.clientX;
+        startLeft = parseFloat(marker.style.left) || 0;
+        marker.style.cursor = 'grabbing';
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
+    const onMouseMove = (e) => {
+        if (!isDragging) return;
+
+        const trackRect = elements.timelineTrack.getBoundingClientRect();
+        const deltaX = e.clientX - startX;
+        const deltaPercent = (deltaX / trackRect.width) * 100;
+        let newLeft = startLeft + deltaPercent;
+
+        // Clamp to valid range
+        newLeft = Math.max(0, Math.min(100, newLeft));
+
+        marker.style.left = `${newLeft}%`;
+
+        // Update timing
+        const newTiming = (newLeft / 100) * state.totalDuration;
+        state.barTimings[index] = newTiming;
+
+        // Update tooltip
+        const tooltip = marker.querySelector('.bar-timing-marker-tooltip');
+        const labels = getXAxisLabels();
+        if (tooltip && labels[index]) {
+            tooltip.textContent = `${labels[index]}: ${newTiming.toFixed(2)}s`;
+        }
+    };
+
+    const onMouseUp = () => {
+        isDragging = false;
+        marker.style.cursor = 'grab';
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    marker.addEventListener('mousedown', onMouseDown);
+
+    // Touch support
+    marker.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        startX = touch.clientX;
+        startLeft = parseFloat(marker.style.left) || 0;
+        isDragging = true;
+
+        const onTouchMove = (e) => {
+            if (!isDragging) return;
+            const touch = e.touches[0];
+            const trackRect = elements.timelineTrack.getBoundingClientRect();
+            const deltaX = touch.clientX - startX;
+            const deltaPercent = (deltaX / trackRect.width) * 100;
+            let newLeft = startLeft + deltaPercent;
+            newLeft = Math.max(0, Math.min(100, newLeft));
+            marker.style.left = `${newLeft}%`;
+            state.barTimings[index] = (newLeft / 100) * state.totalDuration;
+
+            const tooltip = marker.querySelector('.bar-timing-marker-tooltip');
+            const labels = getXAxisLabels();
+            if (tooltip && labels[index]) {
+                tooltip.textContent = `${labels[index]}: ${state.barTimings[index].toFixed(2)}s`;
+            }
+        };
+
+        const onTouchEnd = () => {
+            isDragging = false;
+            document.removeEventListener('touchmove', onTouchMove);
+            document.removeEventListener('touchend', onTouchEnd);
+        };
+
+        document.addEventListener('touchmove', onTouchMove);
+        document.addEventListener('touchend', onTouchEnd);
+    });
+}
+
 // Panel swipe animation easing (fixed)
 const PANEL_EASING = { cp1x: 0.00, cp1y: 0.90, cp2x: 0.30, cp2y: 1.00 };
 const PANEL_ANIMATION_DURATION = 0.5; // 0.5 seconds
@@ -1263,27 +1422,40 @@ function animateChart() {
     elements.chartSubtitle.style.transform = `translateY(${subtitleOffset}px)`;
 
     // Bar animation (uses user-defined easing from the curve editor)
-    // Bars animate 0.5 seconds after graphInTime
-    const barAnimationDelay = 0.5; // 0.5 seconds after graphInTime
-    const barInStart = graphInTime + barAnimationDelay;
-    const barAnimationDuration = 1; // 1 second for bar animation
+    // Each bar has its own timing from state.barTimings
+    const originalData = getYAxisData();
 
-    let barProgress = 0;
-    if (currentTime < barInStart) {
-        barProgress = 0;
-    } else if (currentTime < barInStart + barAnimationDuration) {
-        barProgress = (currentTime - barInStart) / barAnimationDuration;
-    } else if (currentTime < graphOutTime) {
-        barProgress = 1;
-    } else {
-        barProgress = 1 - ((currentTime - graphOutTime) / (state.totalDuration - graphOutTime));
+    // Ensure barTimings array is initialized
+    if (state.barTimings.length === 0 || state.barTimings.length !== originalData.length) {
+        initializeBarTimings();
     }
 
-    barProgress = Math.max(0, Math.min(1, barProgress));
-    barProgress = cubicBezier(barProgress, state.easingPoints.cp1x, state.easingPoints.cp1y, state.easingPoints.cp2x, state.easingPoints.cp2y);
+    // Calculate progress for each bar individually
+    const animatedData = originalData.map((val, index) => {
+        const barStartTime = state.barTimings[index] || (graphInTime + 0.5 + index * DEFAULT_STAGGER);
 
-    const originalData = getYAxisData();
-    state.chart.data.datasets[0].data = originalData.map(val => val * barProgress);
+        let barProgress = 0;
+        if (currentTime < barStartTime) {
+            // Before this bar starts
+            barProgress = 0;
+        } else if (currentTime < barStartTime + BAR_ANIMATION_DURATION) {
+            // During this bar's animation
+            barProgress = (currentTime - barStartTime) / BAR_ANIMATION_DURATION;
+        } else if (currentTime < graphOutTime) {
+            // Fully visible
+            barProgress = 1;
+        } else {
+            // After graphOut - all bars animate out together
+            barProgress = 1 - ((currentTime - graphOutTime) / PANEL_ANIMATION_DURATION);
+        }
+
+        barProgress = Math.max(0, Math.min(1, barProgress));
+        barProgress = cubicBezier(barProgress, state.easingPoints.cp1x, state.easingPoints.cp1y, state.easingPoints.cp2x, state.easingPoints.cp2y);
+
+        return val * barProgress;
+    });
+
+    state.chart.data.datasets[0].data = animatedData;
     state.chart.update('none');
 }
 
@@ -2425,6 +2597,7 @@ function init() {
     updateChart();
     updateTitles();
     updatePanelWidth();
+    initializeBarTimings();
     updateTotalTimeDisplay();
     updateTimelineDisplay();
 }
