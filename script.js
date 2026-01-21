@@ -497,6 +497,7 @@ function handleFileUpload(file) {
                 state.currentFrame = 0;
                 updateTotalTimeDisplay();
                 updateTimelineDisplay();
+                initializeBarTimings();
                 animateChart();
             }
         });
@@ -506,6 +507,7 @@ function handleFileUpload(file) {
         state.currentFrame = 0;
         updateTotalTimeDisplay();
         updateTimelineDisplay();
+        initializeBarTimings();
         const reader = new FileReader();
         reader.onload = e => { elements.previewBackground.style.backgroundImage = `url(${e.target.result})`; };
         reader.readAsDataURL(file);
@@ -527,6 +529,7 @@ function clearUploadedFile() {
     state.currentFrame = 0;
     updateTotalTimeDisplay();
     updateTimelineDisplay();
+    initializeBarTimings();
 }
 
 function updateTotalTimeDisplay() {
