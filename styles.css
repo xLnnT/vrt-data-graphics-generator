@@ -651,16 +651,30 @@ body {
 }
 
 .easing-output {
-    border: 2px solid var(--text-secondary);
-    border-radius: 35px;
-    padding: 16px 24px;
     text-align: center;
 }
 
-#easingValues {
+.easing-input {
+    width: 100%;
+    padding: 12px 20px;
     font-size: 15px;
     font-weight: 500;
+    font-family: var(--font-family);
     color: white;
+    background: transparent;
+    border: 2px solid var(--text-secondary);
+    border-radius: 35px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.easing-input:focus {
+    border-color: var(--accent-violet);
+}
+
+.easing-input:hover {
+    border-color: var(--accent-violet);
 }
 
 /* Export Range */

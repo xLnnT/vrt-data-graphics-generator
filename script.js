@@ -905,6 +905,17 @@ function initEasingCanvas() {
     document.addEventListener('touchmove', handleEasingTouchMove, { passive: false });
     document.addEventListener('touchend', handleEasingMouseUp);
 
+    // Easing input field - allow manual value entry
+    elements.easingValues.addEventListener('input', handleEasingInput);
+    elements.easingValues.addEventListener('blur', () => {
+        // On blur, reformat the value and redraw
+        const parsed = parseEasingInput(elements.easingValues.value);
+        if (parsed) {
+            state.easingPoints = parsed;
+        }
+        drawEasingCurve();
+    });
+
     drawEasingCurve();
 }
 
@@ -1055,8 +1066,37 @@ function drawEasingCurve() {
     ctx.fill();
     ctx.stroke();
 
-    // Update values display
-    elements.easingValues.textContent = `${cp1x.toFixed(2)}, ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)}, ${cp2y.toFixed(2)}`;
+    // Update values display (only if not focused, to avoid overwriting user input)
+    if (document.activeElement !== elements.easingValues) {
+        elements.easingValues.value = `${cp1x.toFixed(2)}, ${cp1y.toFixed(2)}, ${cp2x.toFixed(2)}, ${cp2y.toFixed(2)}`;
+    }
+}
+
+// Parse easing values from input field
+function parseEasingInput(value) {
+    // Remove spaces and split by comma
+    const parts = value.replace(/\s/g, '').split(',');
+    if (parts.length !== 4) return null;
+
+    const nums = parts.map(p => parseFloat(p));
+    if (nums.some(isNaN)) return null;
+
+    // Clamp x values to 0-1, allow y values to be any number (for overshoot)
+    return {
+        cp1x: Math.max(0, Math.min(1, nums[0])),
+        cp1y: nums[1],
+        cp2x: Math.max(0, Math.min(1, nums[2])),
+        cp2y: nums[3]
+    };
+}
+
+// Handle easing input changes
+function handleEasingInput(e) {
+    const parsed = parseEasingInput(e.target.value);
+    if (parsed) {
+        state.easingPoints = parsed;
+        drawEasingCurve();
+    }
 }
 
 // ============================================
