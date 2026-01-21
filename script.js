@@ -357,7 +357,7 @@ function updateValueLabels() {
         valueLabel.className = 'bar-value-label';
         valueLabel.dataset.index = index;
         valueLabel.textContent = originalData[index];
-        valueLabel.style.cssText = `position:absolute;left:${xPos}px;top:${yPos - 10 * scaleFactor}px;transform:translate(-50%,-100%) translateY(50px);opacity:0;font-size:${24 * scaleFactor}px;font-weight:600;color:#031037;font-family:'Roobert VRT',sans-serif;text-align:center;white-space:nowrap`;
+        valueLabel.style.cssText = `position:absolute;left:${xPos}px;top:${yPos - 10 * scaleFactor}px;transform:translate(-50%,-100%) translateY(50px);opacity:0;font-size:${44 * scaleFactor}px;font-weight:600;color:#031037;font-family:'Roobert VRT',sans-serif;text-align:center;white-space:nowrap`;
         container.appendChild(valueLabel);
     });
 
