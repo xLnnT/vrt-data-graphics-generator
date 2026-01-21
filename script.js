@@ -682,6 +682,9 @@ function handleFileUpload(file) {
     const isVideo = file.type.startsWith('video/') ||
                     ['.mp4', '.mov', '.avi', '.mxf'].some(ext => file.name.toLowerCase().endsWith(ext));
 
+    // Store uploaded file reference for audio extraction
+    state.uploadedFile = isVideo ? file : null;
+
     // Clear previous content
     elements.previewBackground.style.backgroundImage = '';
     elements.previewBackground.innerHTML = '';
@@ -733,6 +736,7 @@ function clearUploadedFile() {
     elements.fileInput.value = '';
     elements.uploadFileDisplay.style.display = 'none';
     elements.uploadArea.style.display = 'flex';
+    state.uploadedFile = null;
     state.totalDuration = 20;
     state.currentFrame = 0;
     updateTotalTimeDisplay();
@@ -1513,13 +1517,14 @@ async function exportVideo(format) {
         let audioBuffer = null;
 
         // Extract audio from video if needed
-        if (includeAudio && bgVideo && state.uploadedFile) {
+        if (includeAudio && state.uploadedFile) {
             showExportProgress('Audio extraheren...', 0);
             try {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const response = await fetch(bgVideo.src);
-                const arrayBuffer = await response.arrayBuffer();
+                // Read the original file directly for better compatibility
+                const arrayBuffer = await state.uploadedFile.arrayBuffer();
                 audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                console.log('Audio extracted:', audioBuffer.numberOfChannels, 'channels,', audioBuffer.sampleRate, 'Hz,', audioBuffer.duration, 'sec');
             } catch (audioError) {
                 console.warn('Could not extract audio:', audioError);
                 // Continue without audio
@@ -1576,22 +1581,30 @@ async function exportVideo(format) {
 
         // Initialize AudioEncoder if we have audio
         let audioEncoder = null;
+        let audioChunksEncoded = 0;
         if (audioBuffer) {
-            audioEncoder = new AudioEncoder({
-                output: (chunk, meta) => {
-                    muxer.addAudioChunk(chunk, meta);
-                },
-                error: e => {
-                    console.error('Audio encoder error:', e);
-                }
-            });
+            try {
+                audioEncoder = new AudioEncoder({
+                    output: (chunk, meta) => {
+                        muxer.addAudioChunk(chunk, meta);
+                        audioChunksEncoded++;
+                    },
+                    error: e => {
+                        console.error('Audio encoder error:', e);
+                    }
+                });
 
-            audioEncoder.configure({
-                codec: 'aac',
-                numberOfChannels: audioBuffer.numberOfChannels,
-                sampleRate: audioBuffer.sampleRate,
-                bitrate: 128000
-            });
+                audioEncoder.configure({
+                    codec: 'aac',
+                    numberOfChannels: audioBuffer.numberOfChannels,
+                    sampleRate: audioBuffer.sampleRate,
+                    bitrate: 128000
+                });
+                console.log('AudioEncoder configured:', audioBuffer.numberOfChannels, 'ch,', audioBuffer.sampleRate, 'Hz');
+            } catch (e) {
+                console.error('Failed to initialize AudioEncoder:', e);
+                audioEncoder = null;
+            }
         }
 
         showExportProgress('Frames opnemen en encoderen...', 0);
@@ -1741,6 +1754,7 @@ async function exportVideo(format) {
                 }
 
                 await audioEncoder.flush();
+                console.log('Audio encoding complete:', audioChunksEncoded, 'chunks encoded');
             }
             audioEncoder.close();
         }
