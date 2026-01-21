@@ -1,174 +1,71 @@
 // VRT Data Graphics Generator
-// Optimized and refactored version
 
-// ============================================
-// UTILITIES
-// ============================================
+const MAX_BARS = 30, BASE_WIDTH = 1920, BASE_HEIGHT = 1080, BASE_PANEL_WIDTH = 88, DEBOUNCE_DELAY = 150;
 
-// Debounce function to limit rapid updates
 function debounce(func, wait) {
     let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
+    return (...args) => {
         clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
+        timeout = setTimeout(() => func(...args), wait);
     };
 }
 
-// Schedule update on next animation frame (replaces setTimeout)
 function scheduleUpdate(callback) {
-    requestAnimationFrame(() => {
-        requestAnimationFrame(callback);
-    });
+    requestAnimationFrame(() => requestAnimationFrame(callback));
 }
 
-// ============================================
-// CONSTANTS
-// ============================================
-
-const MAX_BARS = 30;
-const BASE_WIDTH = 1920;
-const BASE_HEIGHT = 1080;
-const BASE_PANEL_WIDTH = 88;
-const DEBOUNCE_DELAY = 150;
-
-// ============================================
-// STATE
-// ============================================
-
 const state = {
-    chart: null,
-    scaleFactor: 1,
-    isPlaying: false,
-    currentFrame: 0,
-    totalDuration: 20, // Total duration in seconds
-    animationId: null,
-    highlightedBars: new Set([5]),
-    logoImages: {},
+    chart: null, scaleFactor: 1, isPlaying: false, currentFrame: 0, totalDuration: 20,
+    animationId: null, highlightedBars: new Set([5]), logoImages: {}, uploadedFile: null,
     logoSettings: { region: '', mono: false, labels: [] },
     easingPoints: { cp1x: 0.90, cp1y: 0.00, cp2x: 0.30, cp2y: 1.00 },
-    barTimings: [], // Array of timing values (in seconds) for each bar
-    uploadedFile: null,
-    lastGraphInTime: 1 // Track previous graphIn value for delta calculations
+    barTimings: [], lastGraphInTime: 1
 };
-
-// ============================================
-// DOM ELEMENTS (cached)
-// ============================================
 
 let elements = null;
 
 function cacheElements() {
+    const $ = id => document.getElementById(id);
     elements = {
-        // Chart settings
-        chartType: document.getElementById('chartType'),
-        position: document.getElementById('position'),
-        panelWidth: document.getElementById('panelWidth'),
-        barWidth: document.getElementById('barWidth'),
-
-        // Colors
-        primaryColor: document.getElementById('primaryColor'),
-        secondaryColor: document.getElementById('secondaryColor'),
-        highlightColor: document.getElementById('highlightColor'),
-
-        // X-axis options
-        showText: document.getElementById('showText'),
-        showLogos: document.getElementById('showLogos'),
-        logoOptions: document.getElementById('logoOptions'),
-        partyRegion: document.getElementById('partyRegion'),
-        monoLogos: document.getElementById('monoLogos'),
-
-        // Upload
-        uploadArea: document.getElementById('uploadArea'),
-        fileInput: document.getElementById('fileInput'),
-
-        // Motion
-        graphIn: document.getElementById('graphIn'),
-        graphOut: document.getElementById('graphOut'),
-
-        // Preview
-        previewArea: document.getElementById('previewArea'),
-        previewBackground: document.getElementById('previewBackground'),
-        chartCanvas: document.getElementById('chartCanvas'),
-        chartTitle: document.getElementById('chartTitle'),
-        chartSubtitle: document.getElementById('chartSubtitle'),
-        chartSource: document.getElementById('chartSource'),
-        chartContainer: null, // Set after DOM ready
-        chartWrapper: null,   // Set after DOM ready
-
-        // Inputs
-        titleInput: document.getElementById('titleInput'),
-        subtitleInput: document.getElementById('subtitleInput'),
-        sourceInput: document.getElementById('sourceInput'),
-        xAxisInput: document.getElementById('xAxisInput'),
-        yAxisInput: document.getElementById('yAxisInput'),
-
-        // Import
-        importArea: document.getElementById('importArea'),
-        dataFileInput: document.getElementById('dataFileInput'),
-        importFileDisplay: document.getElementById('importFileDisplay'),
-        importFileName: document.getElementById('importFileName'),
-        importFileDelete: document.getElementById('importFileDelete'),
-
-        // Upload file display
-        uploadFileDisplay: document.getElementById('uploadFileDisplay'),
-        uploadFileName: document.getElementById('uploadFileName'),
-        uploadFileDelete: document.getElementById('uploadFileDelete'),
-
-        // Easing
-        easingCanvas: document.getElementById('easingCanvas'),
-        easingValues: document.getElementById('easingValues'),
-
-        // Timeline
-        playBtn: document.getElementById('playBtn'),
-        currentTime: document.getElementById('currentTime'),
-        totalTime: document.getElementById('totalTime'),
-        timelineProgress: document.getElementById('timelineProgress'),
-        timelineThumb: document.getElementById('timelineThumb'),
-        barTimingMarkers: document.getElementById('barTimingMarkers'),
-        timelineTrack: document.querySelector('.timeline-track'),
-
-        // Output
-        exportStart: document.getElementById('exportStart'),
-        exportEnd: document.getElementById('exportEnd'),
+        chartType: $('chartType'), position: $('position'), panelWidth: $('panelWidth'), barWidth: $('barWidth'),
+        primaryColor: $('primaryColor'), secondaryColor: $('secondaryColor'), highlightColor: $('highlightColor'),
+        showText: $('showText'), showLogos: $('showLogos'), logoOptions: $('logoOptions'),
+        partyRegion: $('partyRegion'), monoLogos: $('monoLogos'),
+        uploadArea: $('uploadArea'), fileInput: $('fileInput'),
+        graphIn: $('graphIn'), graphOut: $('graphOut'),
+        previewArea: $('previewArea'), previewBackground: $('previewBackground'),
+        chartCanvas: $('chartCanvas'), chartTitle: $('chartTitle'),
+        chartSubtitle: $('chartSubtitle'), chartSource: $('chartSource'),
+        chartContainer: null, chartWrapper: null,
+        titleInput: $('titleInput'), subtitleInput: $('subtitleInput'),
+        sourceInput: $('sourceInput'), xAxisInput: $('xAxisInput'), yAxisInput: $('yAxisInput'),
+        importArea: $('importArea'), dataFileInput: $('dataFileInput'),
+        importFileDisplay: $('importFileDisplay'), importFileName: $('importFileName'), importFileDelete: $('importFileDelete'),
+        uploadFileDisplay: $('uploadFileDisplay'), uploadFileName: $('uploadFileName'), uploadFileDelete: $('uploadFileDelete'),
+        easingCanvas: $('easingCanvas'), easingValues: $('easingValues'),
+        playBtn: $('playBtn'), currentTime: $('currentTime'), totalTime: $('totalTime'),
+        timelineProgress: $('timelineProgress'), timelineThumb: $('timelineThumb'),
+        barTimingMarkers: $('barTimingMarkers'), timelineTrack: document.querySelector('.timeline-track'),
+        exportStart: $('exportStart'), exportEnd: $('exportEnd'),
         outputBtns: document.querySelectorAll('.output-btn')
     };
-
-    // Cache derived elements
     elements.chartContainer = elements.previewArea.querySelector('.chart-container');
     elements.chartWrapper = elements.chartCanvas.parentElement;
 }
 
-// ============================================
-// DATA GETTERS
-// ============================================
-
 function getXAxisLabels() {
-    const input = elements.xAxisInput.value;
-    return input.split(',').map(s => s.trim()).filter(s => s !== '').slice(0, MAX_BARS);
+    return elements.xAxisInput.value.split(',').map(s => s.trim()).filter(Boolean).slice(0, MAX_BARS);
 }
 
 function getYAxisData() {
-    const input = elements.yAxisInput.value;
-    return input.split(',').map(s => s.trim()).filter(s => s !== '').map(s => parseFloat(s) || 0).slice(0, MAX_BARS);
+    return elements.yAxisInput.value.split(',').map(s => parseFloat(s.trim()) || 0).slice(0, MAX_BARS);
 }
 
 function getBarColors() {
-    const labels = getXAxisLabels();
     const primary = elements.primaryColor.dataset.color;
     const highlight = elements.highlightColor.dataset.color;
-
-    return labels.map((_, index) =>
-        state.highlightedBars.has(index) ? highlight : primary
-    );
+    return getXAxisLabels().map((_, i) => state.highlightedBars.has(i) ? highlight : primary);
 }
-
-// ============================================
-// SCALING
-// ============================================
 
 function updateScaleFactor() {
     const rect = elements.previewArea.getBoundingClientRect();
@@ -176,40 +73,21 @@ function updateScaleFactor() {
 }
 
 function applyScaling() {
-    const { scaleFactor } = state;
-    const container = elements.chartContainer;
-
-    // Scale CSS custom properties (based on 1920x1080 Figma design)
-    container.style.setProperty('--title-size', `${Math.round(70 * scaleFactor)}px`);
-    container.style.setProperty('--subtitle-size', `${Math.round(50 * scaleFactor)}px`);
-    container.style.setProperty('--source-size', `${Math.round(24 * scaleFactor)}px`);
-    container.style.setProperty('--padding-v', `${Math.round(30 * scaleFactor)}px`);
-    container.style.setProperty('--padding-h', `${Math.round(50 * scaleFactor)}px`);
-    container.style.setProperty('--spacing-sm', `${Math.round(8 * scaleFactor)}px`);
-
-    // Scale chart elements
+    const s = state.scaleFactor, c = elements.chartContainer;
+    const scale = (v) => `${Math.round(v * s)}px`;
+    c.style.setProperty('--title-size', scale(70));
+    c.style.setProperty('--subtitle-size', scale(50));
+    c.style.setProperty('--source-size', scale(24));
+    c.style.setProperty('--padding-v', scale(30));
+    c.style.setProperty('--padding-h', scale(50));
+    c.style.setProperty('--spacing-sm', scale(8));
     if (state.chart) {
-        const tickSize = Math.round(30 * scaleFactor);
-        const barRadius = Math.round(12 * scaleFactor);
-        const tickPadding = Math.round(15 * scaleFactor);
-
-        state.chart.options.scales.x.ticks.font.size = tickSize;
-        state.chart.options.scales.y.ticks.font.size = tickSize;
-        state.chart.options.scales.x.ticks.padding = tickPadding;
-        state.chart.options.scales.y.ticks.padding = tickPadding;
-
-        state.chart.data.datasets[0].borderRadius = {
-            topLeft: barRadius,
-            topRight: barRadius,
-            bottomLeft: 0,
-            bottomRight: 0
-        };
+        const tickSize = Math.round(30 * s), barRadius = Math.round(12 * s), tickPadding = Math.round(15 * s);
+        state.chart.options.scales.x.ticks.font.size = state.chart.options.scales.y.ticks.font.size = tickSize;
+        state.chart.options.scales.x.ticks.padding = state.chart.options.scales.y.ticks.padding = tickPadding;
+        state.chart.data.datasets[0].borderRadius = { topLeft: barRadius, topRight: barRadius, bottomLeft: 0, bottomRight: 0 };
     }
 }
-
-// ============================================
-// CHART MANAGEMENT
-// ============================================
 
 function initChart() {
     const ctx = elements.chartCanvas.getContext('2d');
@@ -290,7 +168,6 @@ function updateChart(options = {}) {
     const { skipLogoUpdate = false, mode = 'default' } = options;
     const chart = state.chart;
 
-    // Update chart type if needed
     const chartType = elements.chartType.value;
     switch (chartType) {
         case 'bar-vertical':
@@ -316,26 +193,15 @@ function updateChart(options = {}) {
             break;
     }
 
-    // Update data
     chart.data.labels = getXAxisLabels();
     chart.data.datasets[0].data = getYAxisData();
     chart.data.datasets[0].backgroundColor = getBarColors();
 
-    // Update Y-axis max
     const maxValue = Math.max(...getYAxisData(), 0);
-    if (chart.options.scales?.y) {
-        chart.options.scales.y.max = Math.ceil(maxValue / 10) * 10 + 10;
-    }
+    if (chart.options.scales?.y) chart.options.scales.y.max = Math.ceil(maxValue / 10) * 10 + 10;
 
-    // Apply update
     chart.update(mode === 'none' ? 'none' : undefined);
-
-    // Update logos if enabled and not skipped
-    if (!skipLogoUpdate && elements.showLogos.checked) {
-        scheduleUpdate(updateLogoPositions);
-    }
-
-    // Update bar timing markers
+    if (!skipLogoUpdate && elements.showLogos.checked) scheduleUpdate(updateLogoPositions);
     updateBarTimingMarkers();
 }
 
@@ -352,10 +218,6 @@ function handleChartClick(event, clickedElements) {
         updateChart({ skipLogoUpdate: true });
     }
 }
-
-// ============================================
-// LOGO MANAGEMENT
-// ============================================
 
 function getLogoPath(partyName) {
     const region = elements.partyRegion.value === 'vlaamse' ? 'Vlaamse partijen' : 'Waalse partijen';
@@ -378,23 +240,13 @@ function needsLogoReload() {
 async function loadLogos() {
     const labels = getXAxisLabels();
 
-    // Update settings cache
-    state.logoSettings = {
-        region: elements.partyRegion.value,
-        mono: elements.monoLogos.checked,
-        labels: labels.join(',')
-    };
-
-    // Clear old images
+    state.logoSettings = { region: elements.partyRegion.value, mono: elements.monoLogos.checked, labels: labels.join(',') };
     state.logoImages = {};
-
-    // Load all logos in parallel and convert to data URLs (prevents tainted canvas)
     await Promise.all(labels.map(label =>
         new Promise(resolve => {
             const img = new Image();
             img.crossOrigin = 'anonymous';
             img.onload = () => {
-                // Convert to data URL to avoid tainted canvas issues
                 try {
                     const tempCanvas = document.createElement('canvas');
                     tempCanvas.width = img.naturalWidth;
@@ -410,23 +262,12 @@ async function loadLogos() {
                         resolve();
                     };
                     safeImg.src = dataUrl;
-                } catch (e) {
-                    // If conversion fails, use original (may taint canvas)
-                    state.logoImages[label] = img;
-                    resolve();
-                }
+                } catch (e) { state.logoImages[label] = img; resolve(); }
             };
             img.onerror = () => {
-                // Retry without crossOrigin for local file:// protocol
                 const imgLocal = new Image();
-                imgLocal.onload = () => {
-                    state.logoImages[label] = imgLocal;
-                    resolve();
-                };
-                imgLocal.onerror = () => {
-                    state.logoImages[label] = null;
-                    resolve();
-                };
+                imgLocal.onload = () => { state.logoImages[label] = imgLocal; resolve(); };
+                imgLocal.onerror = () => { state.logoImages[label] = null; resolve(); };
                 imgLocal.src = getLogoPath(label);
             };
             img.src = getLogoPath(label);
@@ -436,7 +277,6 @@ async function loadLogos() {
 
 function updateLogoPositions() {
     removeLogos();
-
     if (!state.chart || !elements.showLogos.checked) return;
 
     const { scaleFactor } = state;
@@ -444,64 +284,28 @@ function updateLogoPositions() {
     const xScale = state.chart.scales.x;
     const labels = getXAxisLabels();
     const logoSize = 80 * scaleFactor;
-    const topPosition = chartArea.bottom + (10 * scaleFactor);
+    const canvasOffset = elements.chartCanvas.offsetLeft;
 
-    // Get canvas offset relative to wrapper (accounts for padding/centering)
-    const canvas = elements.chartCanvas;
-    const canvasOffset = canvas.offsetLeft;
-
-    // Create container
     const container = document.createElement('div');
     container.id = 'xAxisLogos';
-    container.style.cssText = `
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: ${topPosition}px;
-        height: ${logoSize}px;
-        pointer-events: none;
-        z-index: 10;
-    `;
+    container.style.cssText = `position:absolute;left:0;right:0;top:${chartArea.bottom + 10 * scaleFactor}px;height:${logoSize}px;pointer-events:none;z-index:10`;
 
-    // Add logos
     labels.forEach((label, index) => {
-        // Add canvas offset to account for wrapper padding/centering
         const xPos = xScale.getPixelForValue(index) + canvasOffset;
-
         const wrapper = document.createElement('div');
-        wrapper.style.cssText = `
-            position: absolute;
-            left: ${xPos}px;
-            top: 0;
-            transform: translateX(-50%);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: ${logoSize}px;
-            height: ${logoSize}px;
-        `;
+        wrapper.style.cssText = `position:absolute;left:${xPos}px;top:0;transform:translateX(-50%);display:flex;justify-content:center;align-items:center;width:${logoSize}px;height:${logoSize}px`;
 
         if (state.logoImages[label]) {
             const img = document.createElement('img');
             img.src = state.logoImages[label].src;
-            img.style.cssText = `
-                max-height: ${logoSize}px;
-                max-width: ${logoSize}px;
-                object-fit: contain;
-            `;
+            img.style.cssText = `max-height:${logoSize}px;max-width:${logoSize}px;object-fit:contain`;
             wrapper.appendChild(img);
         } else {
             const text = document.createElement('span');
             text.textContent = label;
-            text.style.cssText = `
-                font-size: ${12 * scaleFactor}px;
-                color: #666;
-                font-family: 'Roobert VRT', sans-serif;
-                text-align: center;
-            `;
+            text.style.cssText = `font-size:${12 * scaleFactor}px;color:#666;font-family:'Roobert VRT',sans-serif;text-align:center`;
             wrapper.appendChild(text);
         }
-
         container.appendChild(wrapper);
     });
 
@@ -543,10 +347,6 @@ async function updateXAxisDisplay() {
     }
 }
 
-// ============================================
-// PANEL & BAR WIDTH
-// ============================================
-
 function updatePanelWidth() {
     const width = elements.panelWidth.value;
     const horizontalInset = (100 - width) / 2;
@@ -575,10 +375,6 @@ function updateBarWidth() {
     state.chart.update('none');
 }
 
-// ============================================
-// TITLES
-// ============================================
-
 function updateTitles() {
     elements.chartTitle.textContent = elements.titleInput.value || 'Titel';
     elements.chartSubtitle.textContent = elements.subtitleInput.value || 'Subtitel';
@@ -586,10 +382,6 @@ function updateTitles() {
         ? 'bron: ' + elements.sourceInput.value
         : '';
 }
-
-// ============================================
-// TEXT/LOGO TOGGLE
-// ============================================
 
 async function handleTextLogoToggle(e) {
     const checkbox = e.target;
@@ -644,10 +436,6 @@ async function handleTextLogoToggle(e) {
     }
 }
 
-// ============================================
-// COLOR SELECTORS
-// ============================================
-
 function initColorSelectors() {
     const selectors = document.querySelectorAll('.color-selector');
 
@@ -684,42 +472,25 @@ function initColorSelectors() {
     });
 }
 
-// ============================================
-// FILE UPLOAD
-// ============================================
-
-// Maximum file size: 100MB
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
 function handleFileUpload(file) {
     if (!file) return;
-
-    // Check file size
     if (file.size > MAX_FILE_SIZE) {
         alert(`Bestand is te groot. Maximum grootte is 100MB. Uw bestand is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`);
         return;
     }
 
-    const isVideo = file.type.startsWith('video/') ||
-                    ['.mp4', '.mov', '.avi', '.mxf'].some(ext => file.name.toLowerCase().endsWith(ext));
-
-    // Store uploaded file reference for audio extraction
+    const isVideo = file.type.startsWith('video/') || ['.mp4', '.mov', '.avi', '.mxf'].some(ext => file.name.toLowerCase().endsWith(ext));
     state.uploadedFile = isVideo ? file : null;
-
-    // Clear previous content
     elements.previewBackground.style.backgroundImage = '';
     elements.previewBackground.innerHTML = '';
 
     if (isVideo) {
-        // Handle video files
         const video = document.createElement('video');
         video.src = URL.createObjectURL(file);
-        video.autoplay = false;
-        video.loop = false;
-        video.muted = true;
-        video.playsInline = true;
-
-        // Update total duration when video metadata is loaded
+        video.autoplay = video.loop = false;
+        video.muted = video.playsInline = true;
         video.addEventListener('loadedmetadata', () => {
             if (video.duration && isFinite(video.duration)) {
                 state.totalDuration = video.duration;
@@ -729,23 +500,17 @@ function handleFileUpload(file) {
                 animateChart();
             }
         });
-
         elements.previewBackground.appendChild(video);
     } else {
-        // Handle image files - reset to default duration
         state.totalDuration = 20;
         state.currentFrame = 0;
         updateTotalTimeDisplay();
         updateTimelineDisplay();
-
         const reader = new FileReader();
-        reader.onload = e => {
-            elements.previewBackground.style.backgroundImage = `url(${e.target.result})`;
-        };
+        reader.onload = e => { elements.previewBackground.style.backgroundImage = `url(${e.target.result})`; };
         reader.readAsDataURL(file);
     }
 
-    // Show file name and delete button
     elements.uploadFileName.textContent = file.name;
     elements.uploadFileDisplay.style.display = 'flex';
     elements.uploadArea.style.display = 'none';
@@ -769,10 +534,6 @@ function updateTotalTimeDisplay() {
     const seconds = Math.floor(state.totalDuration % 60);
     elements.totalTime.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
-
-// ============================================
-// DATA FILE IMPORT
-// ============================================
 
 function handleDataFileImport(file) {
     if (!file) return;
@@ -905,11 +666,7 @@ function applyImportedData(data) {
     }
 }
 
-// ============================================
-// EASING CANVAS
-// ============================================
-
-let easingDragging = null; // 'cp1' or 'cp2' or null
+let easingDragging = null;
 
 function initEasingCanvas() {
     const canvas = elements.easingCanvas;
@@ -1097,25 +854,14 @@ function drawEasingCurve() {
     }
 }
 
-// Parse easing values from input field
 function parseEasingInput(value) {
-    // Remove spaces and split by comma
     const parts = value.replace(/\s/g, '').split(',');
     if (parts.length !== 4) return null;
-
     const nums = parts.map(p => parseFloat(p));
     if (nums.some(isNaN)) return null;
-
-    // Clamp x values to 0-1, allow y values to be any number (for overshoot)
-    return {
-        cp1x: Math.max(0, Math.min(1, nums[0])),
-        cp1y: nums[1],
-        cp2x: Math.max(0, Math.min(1, nums[2])),
-        cp2y: nums[3]
-    };
+    return { cp1x: Math.max(0, Math.min(1, nums[0])), cp1y: nums[1], cp2x: Math.max(0, Math.min(1, nums[2])), cp2y: nums[3] };
 }
 
-// Handle easing input changes
 function handleEasingInput(e) {
     const parsed = parseEasingInput(e.target.value);
     if (parsed) {
@@ -1124,51 +870,32 @@ function handleEasingInput(e) {
     }
 }
 
-// ============================================
-// ANIMATION / PLAYBACK
-// ============================================
-
 function togglePlayback() {
     state.isPlaying = !state.isPlaying;
-
     const bgVideo = elements.previewBackground.querySelector('video');
 
     if (state.isPlaying) {
         elements.playBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
-
-        // Sync and play background video
         if (bgVideo) {
-            const totalFrames = getTotalFrames();
-            const currentTime = (state.currentFrame / totalFrames) * state.totalDuration;
-            bgVideo.currentTime = currentTime;
+            bgVideo.currentTime = (state.currentFrame / getTotalFrames()) * state.totalDuration;
             bgVideo.play();
         }
-
         animate();
     } else {
         elements.playBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
         cancelAnimationFrame(state.animationId);
-
-        // Pause background video
-        if (bgVideo) {
-            bgVideo.pause();
-        }
+        if (bgVideo) bgVideo.pause();
     }
 }
 
 function animate() {
     if (!state.isPlaying) return;
-
     const totalFrames = getTotalFrames();
     const bgVideo = elements.previewBackground.querySelector('video');
 
-    // If background video exists, sync timeline to video time for accurate playback
     if (bgVideo && !bgVideo.paused) {
-        const videoTime = bgVideo.currentTime;
-        state.currentFrame = Math.floor((videoTime / state.totalDuration) * totalFrames);
-
-        // Check if video ended
-        if (bgVideo.ended || videoTime >= state.totalDuration) {
+        state.currentFrame = Math.floor((bgVideo.currentTime / state.totalDuration) * totalFrames);
+        if (bgVideo.ended || bgVideo.currentTime >= state.totalDuration) {
             state.currentFrame = 0;
             bgVideo.currentTime = 0;
             bgVideo.play();
@@ -1176,17 +903,12 @@ function animate() {
     } else {
         state.currentFrame = (state.currentFrame + 1) % totalFrames;
     }
-
     updateTimelineDisplay();
     animateChart();
-
     state.animationId = requestAnimationFrame(animate);
 }
 
-function getTotalFrames() {
-    // 60fps for preview animation
-    return Math.floor(state.totalDuration * 60);
-}
+function getTotalFrames() { return Math.floor(state.totalDuration * 60); }
 
 function updateTimelineDisplay() {
     const totalFrames = getTotalFrames();
@@ -1200,26 +922,14 @@ function updateTimelineDisplay() {
     elements.currentTime.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
-// ============================================
-// BAR TIMING MARKERS
-// ============================================
-
-const BAR_ANIMATION_DURATION = 0.5; // Duration for each bar's animation
-const DEFAULT_STAGGER = 0.15; // Default stagger between bars
+const BAR_ANIMATION_DURATION = 0.5;
+const DEFAULT_STAGGER = 0.15;
 
 function initializeBarTimings() {
     const labels = getXAxisLabels();
     const graphInTime = parseFloat(elements.graphIn.value) || 1;
-    const barAnimationDelay = 0.5; // Initial delay after graphInTime
-
-    // Store current graphIn time for delta calculations
     state.lastGraphInTime = graphInTime;
-
-    // Create default staggered timings
-    state.barTimings = labels.map((_, index) => {
-        return graphInTime + barAnimationDelay + (index * DEFAULT_STAGGER);
-    });
-
+    state.barTimings = labels.map((_, i) => graphInTime + 0.5 + i * DEFAULT_STAGGER);
     updateBarTimingMarkers();
 }
 
@@ -1271,13 +981,10 @@ function updateBarTimingMarkers() {
 function handleGraphInChange() {
     const newGraphInTime = parseFloat(elements.graphIn.value) || 1;
     const delta = newGraphInTime - state.lastGraphInTime;
-
     if (delta !== 0 && state.barTimings.length > 0) {
-        // Shift all bar timings by the delta
-        state.barTimings = state.barTimings.map(timing => timing + delta);
+        state.barTimings = state.barTimings.map(t => t + delta);
         updateBarTimingMarkers();
     }
-
     state.lastGraphInTime = newGraphInTime;
 }
 
@@ -1368,9 +1075,8 @@ function setupMarkerDrag(marker, index) {
     });
 }
 
-// Panel swipe animation easing (fixed)
 const PANEL_EASING = { cp1x: 0.00, cp1y: 0.90, cp2x: 0.30, cp2y: 1.00 };
-const PANEL_ANIMATION_DURATION = 0.5; // 0.5 seconds
+const PANEL_ANIMATION_DURATION = 0.5;
 
 function animateChart() {
     if (!state.chart) return;
@@ -1500,113 +1206,55 @@ function cubicBezier(t, x1, y1, x2, y2) {
     return ((ay * t + by) * t + cy) * t;
 }
 
-// ============================================
-// EXPORT
-// ============================================
-
 let isExporting = false;
 
-// Show export progress
 function showExportProgress(message, percent = null) {
     let progressEl = document.getElementById('exportProgress');
-
     if (!progressEl) {
         progressEl = document.createElement('div');
         progressEl.id = 'exportProgress';
-        progressEl.style.cssText = `
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(3, 16, 55, 0.95);
-            color: white;
-            padding: 30px 50px;
-            border-radius: 12px;
-            z-index: 10000;
-            text-align: center;
-            font-family: 'Roobert VRT', sans-serif;
-            min-width: 300px;
-        `;
+        progressEl.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(3,16,55,0.95);color:white;padding:30px 50px;border-radius:12px;z-index:10000;text-align:center;font-family:"Roobert VRT",sans-serif;min-width:300px';
         document.body.appendChild(progressEl);
     }
-
-    let html = `<div style="margin-bottom: 15px; font-size: 16px;">${message}</div>`;
-    if (percent !== null) {
-        html += `
-            <div style="background: rgba(255,255,255,0.2); border-radius: 10px; height: 20px; overflow: hidden;">
-                <div style="background: #5541F0; height: 100%; width: ${percent}%; transition: width 0.3s;"></div>
-            </div>
-            <div style="margin-top: 10px; font-size: 14px;">${Math.round(percent)}%</div>
-        `;
-    }
+    let html = `<div style="margin-bottom:15px;font-size:16px">${message}</div>`;
+    if (percent !== null) html += `<div style="background:rgba(255,255,255,0.2);border-radius:10px;height:20px;overflow:hidden"><div style="background:#5541F0;height:100%;width:${percent}%;transition:width 0.3s"></div></div><div style="margin-top:10px;font-size:14px">${Math.round(percent)}%</div>`;
     progressEl.innerHTML = html;
 }
 
 function hideExportProgress() {
-    const progressEl = document.getElementById('exportProgress');
-    if (progressEl) {
-        progressEl.remove();
-    }
+    document.getElementById('exportProgress')?.remove();
 }
 
-// Capture single frame for video export using html2canvas for accurate rendering
 async function captureFrame(withAlpha = false) {
     try {
-        const outputWidth = 1920;
-        const outputHeight = 1080;
-
-        // Get preview dimensions for scaling
+        const outputWidth = 1920, outputHeight = 1080;
         const previewRect = elements.previewArea.getBoundingClientRect();
-        const scaleX = outputWidth / previewRect.width;
-        const scaleY = outputHeight / previewRect.height;
-
-        // Create output canvas
+        const scaleX = outputWidth / previewRect.width, scaleY = outputHeight / previewRect.height;
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         canvas.width = outputWidth;
         canvas.height = outputHeight;
 
-        // Capture background once and reuse
         const bgCanvas = !withAlpha ? await captureBackground() : null;
+        if (bgCanvas) ctx.drawImage(bgCanvas, 0, 0);
 
-        if (bgCanvas) {
-            // Draw background first
-            ctx.drawImage(bgCanvas, 0, 0);
-        }
-
-        // Use html2canvas to capture the chart container with all its content
         const containerRect = elements.chartContainer.getBoundingClientRect();
-
-        // Calculate panel position in output
         const panelX = (containerRect.left - previewRect.left) * scaleX;
         const panelY = (containerRect.top - previewRect.top) * scaleY;
         const panelWidth = containerRect.width * scaleX;
         const panelHeight = containerRect.height * scaleY;
 
-        // Get clip animation state
-        const clipPath = elements.chartContainer.style.clipPath || '';
-        const clipMatch = clipPath.match(/inset\(([0-9.]+)%/);
+        const clipMatch = (elements.chartContainer.style.clipPath || '').match(/inset\(([0-9.]+)%/);
         const clipTopPercent = clipMatch ? parseFloat(clipMatch[1]) : 0;
+        if (clipTopPercent >= 100) return canvas;
 
-        // Skip panel drawing if fully clipped (just return background)
-        if (clipTopPercent >= 100) {
-            return canvas;
-        }
-
-        // Calculate clipped dimensions
         const clipTopPx = (clipTopPercent / 100) * panelHeight;
         const clippedPanelY = panelY + clipTopPx;
         const clippedPanelHeight = panelHeight - clipTopPx;
         const borderRadius = 12 * scaleX;
+        if (clippedPanelHeight < 1) return canvas;
 
-        // Skip if clipped height is too small
-        if (clippedPanelHeight < 1) {
-            return canvas;
-        }
-
-        // Draw blurred background in panel area (simulating backdrop-filter)
         if (bgCanvas) {
-
             ctx.save();
             ctx.beginPath();
             ctx.roundRect(panelX, clippedPanelY, panelWidth, clippedPanelHeight, borderRadius);
@@ -1617,8 +1265,6 @@ async function captureFrame(withAlpha = false) {
             ctx.restore();
         }
 
-        // Capture chart container with html2canvas
-        // Use onclone to ensure we capture current DOM state (important for animation)
         const containerCanvas = await html2canvas(elements.chartContainer, {
             backgroundColor: null,
             scale: 2,
@@ -1626,7 +1272,6 @@ async function captureFrame(withAlpha = false) {
             allowTaint: false,
             logging: false,
             onclone: (clonedDoc, clonedElement) => {
-                // Copy current inline styles to ensure animation state is captured
                 clonedElement.style.clipPath = elements.chartContainer.style.clipPath;
                 const clonedTitle = clonedDoc.getElementById('chartTitle');
                 const clonedSubtitle = clonedDoc.getElementById('chartSubtitle');
@@ -1635,25 +1280,15 @@ async function captureFrame(withAlpha = false) {
             }
         });
 
-        // Clip the container drawing to match the animation state
         ctx.save();
         ctx.beginPath();
         ctx.roundRect(panelX, clippedPanelY, panelWidth, clippedPanelHeight, borderRadius);
         ctx.clip();
-
-        // Draw the captured container scaled to output size
-        ctx.drawImage(
-            containerCanvas,
-            panelX, panelY,
-            panelWidth, panelHeight
-        );
-
+        ctx.drawImage(containerCanvas, panelX, panelY, panelWidth, panelHeight);
         ctx.restore();
-
         return canvas;
     } catch (error) {
         console.error('Frame capture failed:', error);
-        // Fallback: just return the chart canvas
         const fallbackCanvas = document.createElement('canvas');
         fallbackCanvas.width = 1920;
         fallbackCanvas.height = 1080;
@@ -1665,7 +1300,6 @@ async function captureFrame(withAlpha = false) {
     }
 }
 
-// Export video with WebCodecs + mp4-muxer
 async function exportVideo(format) {
     if (isExporting) {
         alert('Export is al bezig. Even geduld.');
@@ -1723,129 +1357,60 @@ async function exportVideo(format) {
             showExportProgress('Audio extraheren...', 0);
             try {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                // Read the original file directly for better compatibility
                 const arrayBuffer = await state.uploadedFile.arrayBuffer();
                 audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-                console.log('Audio extracted:', audioBuffer.numberOfChannels, 'channels,', audioBuffer.sampleRate, 'Hz,', audioBuffer.duration, 'sec');
-            } catch (audioError) {
-                console.warn('Could not extract audio:', audioError);
-                // Continue without audio
-                audioBuffer = null;
-            }
+            } catch (e) { audioBuffer = null; }
         }
 
-        // Initialize mp4-muxer with optional audio
         const { Muxer, ArrayBufferTarget } = Mp4Muxer;
         const target = new ArrayBufferTarget();
-
         const muxerConfig = {
             target,
-            video: {
-                codec: 'avc',
-                width: videoWidth,
-                height: videoHeight
-            },
+            video: { codec: 'avc', width: videoWidth, height: videoHeight },
             fastStart: 'in-memory',
             firstTimestampBehavior: 'offset'
         };
-
-        // Add audio config if we have audio
         if (audioBuffer) {
-            muxerConfig.audio = {
-                codec: 'aac',
-                numberOfChannels: audioBuffer.numberOfChannels,
-                sampleRate: audioBuffer.sampleRate
-            };
+            muxerConfig.audio = { codec: 'aac', numberOfChannels: audioBuffer.numberOfChannels, sampleRate: audioBuffer.sampleRate };
         }
-
         const muxer = new Muxer(muxerConfig);
 
-        // Initialize VideoEncoder
         let encodedFrames = 0;
         const videoEncoder = new VideoEncoder({
-            output: (chunk, meta) => {
-                muxer.addVideoChunk(chunk, meta);
-                encodedFrames++;
-            },
-            error: e => {
-                console.error('Encoder error:', e);
-                throw e;
-            }
+            output: (chunk, meta) => { muxer.addVideoChunk(chunk, meta); encodedFrames++; },
+            error: e => { throw e; }
         });
+        videoEncoder.configure({ codec: 'avc1.640033', width: videoWidth, height: videoHeight, bitrate: 15_000_000, framerate: fps });
 
-        videoEncoder.configure({
-            codec: 'avc1.640033',
-            width: videoWidth,
-            height: videoHeight,
-            bitrate: 15_000_000,
-            framerate: fps
-        });
-
-        // Initialize AudioEncoder if we have audio
-        let audioEncoder = null;
-        let audioChunksEncoded = 0;
-        let audioCodecUsed = null;
+        let audioEncoder = null, audioChunksEncoded = 0, audioCodecUsed = null;
         if (audioBuffer && typeof AudioEncoder !== 'undefined') {
             try {
-                // Try different audio codecs in order of preference
-                const codecsToTry = [
-                    { codec: 'mp4a.40.2', name: 'AAC-LC' },  // AAC-LC specific
-                    { codec: 'aac', name: 'AAC' },
-                    { codec: 'opus', name: 'Opus' }
-                ];
-
+                const codecsToTry = ['mp4a.40.2', 'aac', 'opus'];
                 let supportedConfig = null;
-                for (const codecInfo of codecsToTry) {
-                    const audioConfig = {
-                        codec: codecInfo.codec,
-                        numberOfChannels: audioBuffer.numberOfChannels,
-                        sampleRate: audioBuffer.sampleRate,
-                        bitrate: 128000
-                    };
-
+                for (const codec of codecsToTry) {
                     try {
-                        const support = await AudioEncoder.isConfigSupported(audioConfig);
-                        console.log(`AudioEncoder ${codecInfo.name} support:`, support.supported);
+                        const support = await AudioEncoder.isConfigSupported({
+                            codec, numberOfChannels: audioBuffer.numberOfChannels,
+                            sampleRate: audioBuffer.sampleRate, bitrate: 128000
+                        });
                         if (support.supported) {
                             supportedConfig = support.config;
-                            audioCodecUsed = codecInfo.codec;
-                            console.log(`Using audio codec: ${codecInfo.name}`);
+                            audioCodecUsed = codec;
                             break;
                         }
-                    } catch (e) {
-                        console.log(`Codec ${codecInfo.name} check failed:`, e.message);
-                    }
+                    } catch (e) {}
                 }
-
                 if (supportedConfig) {
-                    // Update muxer audio config if using opus (requires different container handling)
-                    // For now, only use AAC variants for MP4 compatibility
-                    if (audioCodecUsed === 'opus') {
-                        console.warn('Opus not compatible with MP4, skipping audio');
-                        supportedConfig = null;
-                    }
+                    if (audioCodecUsed === 'opus') supportedConfig = null;
                 }
-
                 if (supportedConfig) {
                     audioEncoder = new AudioEncoder({
-                        output: (chunk, meta) => {
-                            muxer.addAudioChunk(chunk, meta);
-                            audioChunksEncoded++;
-                        },
-                        error: e => {
-                            console.error('Audio encoder error:', e);
-                        }
+                        output: (chunk, meta) => { muxer.addAudioChunk(chunk, meta); audioChunksEncoded++; },
+                        error: () => {}
                     });
-
                     audioEncoder.configure(supportedConfig);
-                    console.log('AudioEncoder configured:', audioBuffer.numberOfChannels, 'ch,', audioBuffer.sampleRate, 'Hz, state:', audioEncoder.state);
-                } else {
-                    console.warn('No compatible audio codec found for MP4 export');
                 }
-            } catch (e) {
-                console.error('Failed to initialize AudioEncoder:', e);
-                audioEncoder = null;
-            }
+            } catch (e) { audioEncoder = null; }
         }
 
         showExportProgress('Frames opnemen en encoderen...', 0);
@@ -1968,109 +1533,55 @@ async function exportVideo(format) {
                     const numChunks = Math.ceil(totalSamples / chunkSize);
 
                     for (let chunkIndex = 0; chunkIndex < numChunks; chunkIndex++) {
-                        // Check encoder state before each encode
-                        if (audioEncoder.state !== 'configured') {
-                            console.warn('AudioEncoder state changed to:', audioEncoder.state);
-                            break;
-                        }
-
+                        if (audioEncoder.state !== 'configured') break;
                         const chunkStart = startSample + (chunkIndex * chunkSize);
                         const chunkEnd = Math.min(chunkStart + chunkSize, endSample);
                         const actualChunkSize = chunkEnd - chunkStart;
-
-                        // Create planar audio data (each channel's samples are contiguous)
                         const audioData = new Float32Array(actualChunkSize * numberOfChannels);
-
                         for (let channel = 0; channel < numberOfChannels; channel++) {
                             const channelData = audioBuffer.getChannelData(channel);
                             const offset = channel * actualChunkSize;
-                            for (let i = 0; i < actualChunkSize; i++) {
-                                audioData[offset + i] = channelData[chunkStart + i];
-                            }
+                            for (let i = 0; i < actualChunkSize; i++) audioData[offset + i] = channelData[chunkStart + i];
                         }
-
-                        // Create AudioData and encode
                         const audioDataObj = new AudioData({
-                            format: 'f32-planar',
-                            sampleRate: sampleRate,
-                            numberOfFrames: actualChunkSize,
-                            numberOfChannels: numberOfChannels,
-                            timestamp: ((chunkIndex * chunkSize) * 1_000_000) / sampleRate,
-                            data: audioData
+                            format: 'f32-planar', sampleRate, numberOfFrames: actualChunkSize,
+                            numberOfChannels, timestamp: ((chunkIndex * chunkSize) * 1_000_000) / sampleRate, data: audioData
                         });
-
                         audioEncoder.encode(audioDataObj);
                         audioDataObj.close();
-
-                        // Allow UI updates periodically
-                        if (chunkIndex % 100 === 0) {
-                            await new Promise(r => setTimeout(r, 0));
-                        }
+                        if (chunkIndex % 100 === 0) await new Promise(r => setTimeout(r, 0));
                     }
-
-                    if (audioEncoder.state === 'configured') {
-                        await audioEncoder.flush();
-                        console.log('Audio encoding complete:', audioChunksEncoded, 'chunks encoded');
-                    }
+                    if (audioEncoder.state === 'configured') await audioEncoder.flush();
                 }
-
-                if (audioEncoder.state !== 'closed') {
-                    audioEncoder.close();
-                }
-            } catch (audioError) {
-                console.error('Audio encoding failed:', audioError);
-                // Continue without audio
-            }
+                if (audioEncoder.state !== 'closed') audioEncoder.close();
+            } catch (e) {}
         }
 
         showExportProgress('Video finaliseren...', 95);
-
-        // Close audio context if used
-        if (audioContext) {
-            audioContext.close();
-        }
-
-        // Finalize muxer
+        if (audioContext) audioContext.close();
         muxer.finalize();
 
-        // Create download
         const videoBlob = new Blob([target.buffer], { type: 'video/mp4' });
         const url = URL.createObjectURL(videoBlob);
         const link = document.createElement('a');
         link.href = url;
         link.download = 'vrt-graphic.mp4';
         link.click();
-
-        // Cleanup
         URL.revokeObjectURL(url);
 
-        // Restore state
         state.currentFrame = savedFrame;
         updateTimelineDisplay();
         animateChart();
-
-        // Restore video position
-        if (bgVideo) {
-            const restoredTime = (savedFrame / getTotalFrames()) * state.totalDuration;
-            bgVideo.currentTime = restoredTime;
-        }
-
+        if (bgVideo) bgVideo.currentTime = (savedFrame / getTotalFrames()) * state.totalDuration;
         hideExportProgress();
-
-        if (wasPlaying) {
-            togglePlayback();
-        }
-
+        if (wasPlaying) togglePlayback();
     } catch (error) {
-        console.error('Export failed:', error);
         alert(`Export mislukt: ${error.message}`);
         hideExportProgress();
     }
-
     isExporting = false;
 }
 
-// Export video with audio using MediaRecorder (real-time recording)
 async function exportVideoWithMediaRecorder(format) {
     if (isExporting) {
         alert('Export is al bezig. Even geduld.');
@@ -2126,41 +1637,23 @@ async function exportVideoWithMediaRecorder(format) {
                 setTimeout(reject, 5000);
             });
 
-            // Capture audio stream from the video
             let audioStream = null;
             if (audioVideo.captureStream) {
-                const videoStream = audioVideo.captureStream();
-                const audioTracks = videoStream.getAudioTracks();
-                if (audioTracks.length > 0) {
-                    audioStream = new MediaStream(audioTracks);
-                    console.log('Audio track captured from video');
-                }
+                const audioTracks = audioVideo.captureStream().getAudioTracks();
+                if (audioTracks.length > 0) audioStream = new MediaStream(audioTracks);
             }
-
             if (audioStream) {
-                // Combine canvas video with audio
-                combinedStream = new MediaStream([
-                    ...canvasStream.getVideoTracks(),
-                    ...audioStream.getAudioTracks()
-                ]);
+                combinedStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioStream.getAudioTracks()]);
             }
-
-            // Set up audio video for synchronized playback
             audioVideo.currentTime = exportStartTime;
             await new Promise(r => { audioVideo.onseeked = r; });
-
-            // Store for later use
             recordCanvas._audioVideo = audioVideo;
         }
 
-        // Set up MediaRecorder
         const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
             ? 'video/webm;codecs=vp9,opus'
             : MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
-            ? 'video/webm;codecs=vp8,opus'
-            : 'video/webm';
-
-        console.log('Using MIME type:', mimeType);
+            ? 'video/webm;codecs=vp8,opus' : 'video/webm';
 
         const mediaRecorder = new MediaRecorder(combinedStream, {
             mimeType,
@@ -2188,10 +1681,7 @@ async function exportVideoWithMediaRecorder(format) {
 
         showExportProgress('Opnemen... (real-time)', 5);
 
-        // Animate and capture frames in real-time
         const startRealTime = performance.now();
-        let lastFrameTime = startRealTime;
-
         const animate = async () => {
             const elapsed = (performance.now() - startRealTime) / 1000;
             const currentExportTime = exportStartTime + elapsed;
@@ -2276,73 +1766,46 @@ async function exportVideoWithMediaRecorder(format) {
     isExporting = false;
 }
 
-// Cache for last successful video frame (prevents black flicker)
 let lastVideoFrameCanvas = null;
 
-// Capture background (image or video frame) to canvas
 async function captureBackground() {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     canvas.width = 1920;
     canvas.height = 1080;
 
-    // Check for video background
     const bgVideo = elements.previewBackground.querySelector('video');
     if (bgVideo) {
-        // Wait for video to be ready if needed
         if (bgVideo.readyState < 2) {
             await new Promise(resolve => {
-                const checkReady = () => {
-                    if (bgVideo.readyState >= 2) {
-                        resolve();
-                    } else {
-                        requestAnimationFrame(checkReady);
-                    }
-                };
+                const checkReady = () => bgVideo.readyState >= 2 ? resolve() : requestAnimationFrame(checkReady);
                 checkReady();
-                // Timeout fallback
                 setTimeout(resolve, 200);
             });
         }
-
-        // Try to draw video frame
         try {
             ctx.drawImage(bgVideo, 0, 0, 1920, 1080);
-            // Cache this frame
             lastVideoFrameCanvas = canvas;
             return canvas;
         } catch (e) {
-            // If drawing fails, use cached frame
-            if (lastVideoFrameCanvas) {
-                ctx.drawImage(lastVideoFrameCanvas, 0, 0);
-                return canvas;
-            }
+            if (lastVideoFrameCanvas) { ctx.drawImage(lastVideoFrameCanvas, 0, 0); return canvas; }
         }
     }
 
-    // Check for image background
     const bgStyle = elements.previewBackground.style.backgroundImage;
     if (bgStyle && bgStyle !== 'none' && bgStyle !== '') {
         const urlMatch = bgStyle.match(/url\(["']?([^"']+)["']?\)/);
         if (urlMatch) {
-            return new Promise((resolve) => {
+            return new Promise(resolve => {
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
-                img.onload = () => {
-                    ctx.drawImage(img, 0, 0, 1920, 1080);
-                    resolve(canvas);
-                };
-                img.onerror = () => {
-                    ctx.fillStyle = '#1a1a2e';
-                    ctx.fillRect(0, 0, 1920, 1080);
-                    resolve(canvas);
-                };
+                img.onload = () => { ctx.drawImage(img, 0, 0, 1920, 1080); resolve(canvas); };
+                img.onerror = () => { ctx.fillStyle = '#1a1a2e'; ctx.fillRect(0, 0, 1920, 1080); resolve(canvas); };
                 img.src = urlMatch[1];
             });
         }
     }
 
-    // No background - use dark gradient instead of black
     const gradient = ctx.createLinearGradient(0, 0, 1920, 1080);
     gradient.addColorStop(0, '#1a1a2e');
     gradient.addColorStop(1, '#16213e');
@@ -2351,59 +1814,35 @@ async function captureBackground() {
     return canvas;
 }
 
-// Create blurred glass panel effect manually
 async function createGlassEffect(backgroundCanvas, containerRect, previewRect) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     canvas.width = 1920;
     canvas.height = 1080;
-
-    // Calculate panel position in 1920x1080 space
-    const scaleX = 1920 / previewRect.width;
-    const scaleY = 1080 / previewRect.height;
+    const scaleX = 1920 / previewRect.width, scaleY = 1080 / previewRect.height;
     const panelX = (containerRect.left - previewRect.left) * scaleX;
     const panelY = (containerRect.top - previewRect.top) * scaleY;
-    const panelWidth = containerRect.width * scaleX;
-    const panelHeight = containerRect.height * scaleY;
+    const panelWidth = containerRect.width * scaleX, panelHeight = containerRect.height * scaleY;
     const borderRadius = 12 * scaleX;
 
-    // Draw background
     ctx.drawImage(backgroundCanvas, 0, 0);
-
-    // Create clipping path for rounded rectangle
     ctx.save();
     ctx.beginPath();
     ctx.roundRect(panelX, panelY, panelWidth, panelHeight, borderRadius);
     ctx.clip();
-
-    // Draw blurred background in panel area
     ctx.filter = 'blur(20px)';
     ctx.drawImage(backgroundCanvas, 0, 0);
     ctx.filter = 'none';
-
-    // Draw semi-transparent white overlay
     ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
     ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
     ctx.restore();
-
     return { canvas, panelX, panelY, panelWidth, panelHeight };
 }
 
-// Main export handler
 async function handleExport(format) {
-    // MP4 with audio uses MediaRecorder (real-time recording with audio)
-    if (format === 'mp4-audio') {
-        await exportVideoWithMediaRecorder(format);
-        return;
-    }
+    if (format === 'mp4-audio') { await exportVideoWithMediaRecorder(format); return; }
+    if (['mp4-noaudio', 'mov-alpha'].includes(format)) { await exportVideo(format); return; }
 
-    // Video formats without audio use WebCodecs + mp4-muxer (faster)
-    if (['mp4-noaudio', 'mov-alpha'].includes(format)) {
-        await exportVideo(format);
-        return;
-    }
-
-    // Image formats - use captureFrame to avoid tainted canvas
     if (format === 'jpg') {
         try {
             const canvas = await captureFrame(false); // with background
@@ -2429,107 +1868,45 @@ async function handleExport(format) {
     }
 }
 
-// ============================================
-// EVENT LISTENERS
-// ============================================
-
 function initEventListeners() {
-    // Debounced handlers for text inputs
     const debouncedChartUpdate = debounce(() => updateChart(), DEBOUNCE_DELAY);
     const debouncedTitleUpdate = debounce(() => updateTitles(), DEBOUNCE_DELAY);
-    const debouncedAxisUpdate = debounce(() => {
-        updateChart();
-        if (elements.showLogos.checked) {
-            updateXAxisDisplay();
-        }
-    }, DEBOUNCE_DELAY);
+    const debouncedAxisUpdate = debounce(() => { updateChart(); if (elements.showLogos.checked) updateXAxisDisplay(); }, DEBOUNCE_DELAY);
 
-    // Chart settings (immediate)
     elements.chartType.addEventListener('change', () => updateChart());
     elements.position.addEventListener('change', () => updateChart());
     elements.panelWidth.addEventListener('input', updatePanelWidth);
     elements.barWidth.addEventListener('input', updateBarWidth);
-
-    // Motion - shift bar timings when graphIn changes
     elements.graphIn.addEventListener('input', handleGraphInChange);
 
-    // Colors
     initColorSelectors();
 
-    // Text/Logos toggle (immediate)
     elements.showText.addEventListener('change', handleTextLogoToggle);
     elements.showLogos.addEventListener('change', handleTextLogoToggle);
+    elements.partyRegion.addEventListener('change', async () => { await loadLogos(); state.chart?.update(); updateLogoPositions(); });
+    elements.monoLogos.addEventListener('change', async () => { await loadLogos(); state.chart?.update(); updateLogoPositions(); });
 
-    // Region/Mono changes - force logo reload
-    elements.partyRegion.addEventListener('change', async () => {
-        await loadLogos();
-        state.chart?.update();
-        updateLogoPositions();
-    });
-    elements.monoLogos.addEventListener('change', async () => {
-        await loadLogos();
-        state.chart?.update();
-        updateLogoPositions();
-    });
-
-    // Upload
     elements.uploadArea.addEventListener('click', () => elements.fileInput.click());
     elements.fileInput.addEventListener('change', e => handleFileUpload(e.target.files[0]));
+    elements.uploadArea.addEventListener('dragover', e => { e.preventDefault(); elements.uploadArea.style.opacity = '0.5'; });
+    elements.uploadArea.addEventListener('dragleave', () => { elements.uploadArea.style.opacity = '1'; });
+    elements.uploadArea.addEventListener('drop', e => { e.preventDefault(); elements.uploadArea.style.opacity = '1'; handleFileUpload(e.dataTransfer.files[0]); });
 
-    // Drag and drop
-    elements.uploadArea.addEventListener('dragover', e => {
-        e.preventDefault();
-        elements.uploadArea.style.opacity = '0.5';
-    });
-    elements.uploadArea.addEventListener('dragleave', () => {
-        elements.uploadArea.style.opacity = '1';
-    });
-    elements.uploadArea.addEventListener('drop', e => {
-        e.preventDefault();
-        elements.uploadArea.style.opacity = '1';
-        handleFileUpload(e.dataTransfer.files[0]);
-    });
-
-    // Data file import
     elements.importArea.addEventListener('click', () => elements.dataFileInput.click());
     elements.dataFileInput.addEventListener('change', e => handleDataFileImport(e.target.files[0]));
+    elements.importArea.addEventListener('dragover', e => { e.preventDefault(); elements.importArea.style.opacity = '0.5'; });
+    elements.importArea.addEventListener('dragleave', () => { elements.importArea.style.opacity = '1'; });
+    elements.importArea.addEventListener('drop', e => { e.preventDefault(); elements.importArea.style.opacity = '1'; handleDataFileImport(e.dataTransfer.files[0]); });
 
-    // Drag and drop for import
-    elements.importArea.addEventListener('dragover', e => {
-        e.preventDefault();
-        elements.importArea.style.opacity = '0.5';
-    });
-    elements.importArea.addEventListener('dragleave', () => {
-        elements.importArea.style.opacity = '1';
-    });
-    elements.importArea.addEventListener('drop', e => {
-        e.preventDefault();
-        elements.importArea.style.opacity = '1';
-        handleDataFileImport(e.dataTransfer.files[0]);
-    });
-
-    // Delete buttons for uploaded files
     elements.uploadFileDelete.addEventListener('click', clearUploadedFile);
     elements.importFileDelete.addEventListener('click', clearImportedFile);
 
-    // Title inputs (debounced)
     elements.titleInput.addEventListener('input', debouncedTitleUpdate);
     elements.subtitleInput.addEventListener('input', debouncedTitleUpdate);
     elements.sourceInput.addEventListener('input', debouncedTitleUpdate);
-
-    // Axis inputs
-    // X-axis: immediate update when logos enabled (to load logos as you type), debounced otherwise
-    elements.xAxisInput.addEventListener('input', () => {
-        if (elements.showLogos.checked) {
-            updateChart();
-            updateXAxisDisplay();
-        } else {
-            debouncedAxisUpdate();
-        }
-    });
+    elements.xAxisInput.addEventListener('input', () => { elements.showLogos.checked ? (updateChart(), updateXAxisDisplay()) : debouncedAxisUpdate(); });
     elements.yAxisInput.addEventListener('input', debouncedChartUpdate);
 
-    // Timeline
     elements.playBtn.addEventListener('click', togglePlayback);
 
     const timelineTrack = elements.timelineProgress.parentElement;
@@ -2594,10 +1971,6 @@ function initEventListeners() {
     });
 }
 
-// ============================================
-// RESIZE HANDLING
-// ============================================
-
 function initResizeObserver() {
     const resizeObserver = new ResizeObserver(() => {
         updateScaleFactor();
@@ -2614,10 +1987,6 @@ function initResizeObserver() {
 
     resizeObserver.observe(elements.previewArea);
 }
-
-// ============================================
-// INITIALIZATION
-// ============================================
 
 function init() {
     cacheElements();
