@@ -95,7 +95,7 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    padding: 0 16px 16px 16px;
+    padding: 16px;
 }
 
 /* Header */
@@ -103,7 +103,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 8px 0 12px;
+    padding: 12px 0 24px;
 }
 
 .logo-container {
@@ -139,6 +139,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 16px;
+    margin-top: -85px;
 }
 
 /* Panel */
