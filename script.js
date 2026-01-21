@@ -54,11 +54,11 @@ function cacheElements() {
 }
 
 function getXAxisLabels() {
-    return elements.xAxisInput.value.split(',').map(s => s.trim()).filter(Boolean).slice(0, MAX_BARS);
+    return elements.xAxisInput.value.split(',').map(s => s.trim()).filter(Boolean).slice(0, getMaxBars());
 }
 
 function getYAxisData() {
-    return elements.yAxisInput.value.split(',').map(s => parseFloat(s.trim()) || 0).slice(0, MAX_BARS);
+    return elements.yAxisInput.value.split(',').map(s => parseFloat(s.trim()) || 0).slice(0, getMaxBars());
 }
 
 function getBarColors() {
@@ -452,11 +452,23 @@ async function updateXAxisDisplay() {
 }
 
 function updatePanelWidth() {
+    const position = elements.position.value;
     const width = elements.panelWidth.value;
     const horizontalInset = (100 - width) / 2;
 
-    elements.chartContainer.style.left = `${horizontalInset}%`;
-    elements.chartContainer.style.right = `${horizontalInset}%`;
+    if (position === 'left') {
+        // Left position: half the inset on left, rest on right
+        elements.chartContainer.style.left = `${horizontalInset / 2}%`;
+        elements.chartContainer.style.right = `${100 - width - horizontalInset / 2}%`;
+    } else if (position === 'right') {
+        // Right position: rest on left, half the inset on right
+        elements.chartContainer.style.left = `${100 - width - horizontalInset / 2}%`;
+        elements.chartContainer.style.right = `${horizontalInset / 2}%`;
+    } else {
+        // Center position: equal insets
+        elements.chartContainer.style.left = `${horizontalInset}%`;
+        elements.chartContainer.style.right = `${horizontalInset}%`;
+    }
 
     updateBarWidth();
 
@@ -466,6 +478,11 @@ function updatePanelWidth() {
             updateLogoPositions();
         });
     }
+}
+
+function getMaxBars() {
+    const position = elements.position.value;
+    return (position === 'left' || position === 'right') ? 2 : MAX_BARS;
 }
 
 function updateBarWidth() {
@@ -1990,7 +2007,12 @@ function initEventListeners() {
     const debouncedAxisUpdate = debounce(() => { updateChart(); if (elements.showLogos.checked) updateXAxisDisplay(); }, DEBOUNCE_DELAY);
 
     elements.chartType.addEventListener('change', () => updateChart());
-    elements.position.addEventListener('change', () => updateChart());
+    elements.position.addEventListener('change', () => {
+        updateChart();
+        updatePanelWidth();
+        initializeBarTimings();
+        updateBarTimingMarkers();
+    });
     elements.panelWidth.addEventListener('input', updatePanelWidth);
     elements.barWidth.addEventListener('input', updateBarWidth);
     elements.graphIn.addEventListener('input', handleGraphInChange);
