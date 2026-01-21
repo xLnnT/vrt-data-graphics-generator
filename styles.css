@@ -541,36 +541,36 @@ body {
 
 .chart-container {
     position: absolute;
-    top: 5%;
-    bottom: 5%;
-    left: 6%;
-    right: 6%;
+    top: 7%;
+    bottom: 4%;
+    left: 5.5%;
+    right: 5.5%;
     z-index: 1;
     display: flex;
     flex-direction: column;
-    background: rgba(255, 255, 255, 0.5);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: 12px;
+    background: rgba(230, 230, 230, 0.7);
+    backdrop-filter: blur(35px);
+    -webkit-backdrop-filter: blur(35px);
+    border-radius: 25px;
 }
 
 .chart-title {
-    font-size: var(--title-size, 36px);
+    font-size: var(--title-size, 70px);
     font-weight: 600;
     color: #031037;
     text-align: center;
     line-height: 1.1;
-    padding: var(--padding-v, 20px) var(--padding-h, 30px) 0;
+    padding: var(--padding-v, 30px) var(--padding-h, 40px) 0;
     flex-shrink: 0;
 }
 
 .chart-subtitle {
-    font-size: var(--subtitle-size, 20px);
-    font-weight: 500;
-    color: #031037;
+    font-size: var(--subtitle-size, 50px);
+    font-weight: 400;
+    color: #000000;
     text-align: center;
-    margin-top: var(--spacing-sm, 4px);
-    padding: 0 var(--padding-h, 30px);
+    margin-top: var(--spacing-sm, 8px);
+    padding: 0 var(--padding-h, 40px);
     flex-shrink: 0;
 }
 
@@ -579,7 +579,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: var(--padding-v, 20px) var(--padding-h, 30px);
+    padding: var(--padding-v, 20px) var(--padding-h, 60px);
     min-height: 0;
 }
 
@@ -589,10 +589,11 @@ body {
 }
 
 .chart-source {
-    font-size: var(--source-size, 14px);
-    color: #666;
+    font-size: var(--source-size, 24px);
+    font-weight: 400;
+    color: #000000;
     text-align: center;
-    padding: 0 var(--padding-h, 30px) var(--padding-v, 20px);
+    padding: 0 var(--padding-h, 40px) var(--padding-v, 30px);
     flex-shrink: 0;
 }
 

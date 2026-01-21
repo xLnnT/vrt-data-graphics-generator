@@ -179,23 +179,24 @@ function applyScaling() {
     const { scaleFactor } = state;
     const container = elements.chartContainer;
 
-    // Scale CSS custom properties
-    container.style.setProperty('--title-size', `${Math.round(42 * scaleFactor)}px`);
-    container.style.setProperty('--subtitle-size', `${Math.round(24 * scaleFactor)}px`);
-    container.style.setProperty('--source-size', `${Math.round(16 * scaleFactor)}px`);
-    container.style.setProperty('--padding-v', `${Math.round(25 * scaleFactor)}px`);
-    container.style.setProperty('--padding-h', `${Math.round(35 * scaleFactor)}px`);
-    container.style.setProperty('--spacing-sm', `${Math.round(6 * scaleFactor)}px`);
+    // Scale CSS custom properties (based on 1920x1080 Figma design)
+    container.style.setProperty('--title-size', `${Math.round(70 * scaleFactor)}px`);
+    container.style.setProperty('--subtitle-size', `${Math.round(50 * scaleFactor)}px`);
+    container.style.setProperty('--source-size', `${Math.round(24 * scaleFactor)}px`);
+    container.style.setProperty('--padding-v', `${Math.round(30 * scaleFactor)}px`);
+    container.style.setProperty('--padding-h', `${Math.round(50 * scaleFactor)}px`);
+    container.style.setProperty('--spacing-sm', `${Math.round(8 * scaleFactor)}px`);
 
     // Scale chart elements
     if (state.chart) {
-        const tickSize = Math.round(14 * scaleFactor);
-        const barRadius = Math.round(8 * scaleFactor);
+        const tickSize = Math.round(30 * scaleFactor);
+        const barRadius = Math.round(12 * scaleFactor);
+        const tickPadding = Math.round(15 * scaleFactor);
 
         state.chart.options.scales.x.ticks.font.size = tickSize;
         state.chart.options.scales.y.ticks.font.size = tickSize;
-        state.chart.options.scales.x.ticks.padding = Math.round(10 * scaleFactor);
-        state.chart.options.scales.y.ticks.padding = Math.round(10 * scaleFactor);
+        state.chart.options.scales.x.ticks.padding = tickPadding;
+        state.chart.options.scales.y.ticks.padding = tickPadding;
 
         state.chart.data.datasets[0].borderRadius = {
             topLeft: barRadius,
@@ -223,16 +224,24 @@ function initChart() {
                 backgroundColor: getBarColors(),
                 borderColor: 'transparent',
                 borderWidth: 0,
-                borderRadius: { topLeft: 6, topRight: 6, bottomLeft: 0, bottomRight: 0 },
+                borderRadius: { topLeft: 12, topRight: 12, bottomLeft: 0, bottomRight: 0 },
                 borderSkipped: false,
-                barPercentage: 0.5,
-                categoryPercentage: 0.7
+                barPercentage: 0.35,
+                categoryPercentage: 0.9
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
             animation: { duration: 0 },
+            layout: {
+                padding: {
+                    left: 20,
+                    right: 40,
+                    top: 20,
+                    bottom: 10
+                }
+            },
             plugins: {
                 legend: { display: false },
                 tooltip: {
@@ -248,20 +257,24 @@ function initChart() {
                     grid: { display: false },
                     border: { display: false },
                     ticks: {
-                        color: '#666',
-                        font: { size: 13, family: 'Roobert VRT' },
-                        padding: 8
+                        color: '#000000',
+                        font: { size: 18, family: 'Roobert VRT', weight: '400' },
+                        padding: 15
                     }
                 },
                 y: {
                     beginAtZero: true,
                     max: 60,
                     border: { display: false },
-                    grid: { color: '#c0c0c0', lineWidth: 1 },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.15)',
+                        lineWidth: 1,
+                        drawTicks: false
+                    },
                     ticks: {
-                        color: '#666',
-                        font: { size: 13, family: 'Roobert VRT' },
-                        padding: 8,
+                        color: '#000000',
+                        font: { size: 18, family: 'Roobert VRT', weight: '400' },
+                        padding: 15,
                         callback: value => value + '%'
                     }
                 }
