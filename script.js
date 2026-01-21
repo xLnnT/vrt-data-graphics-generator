@@ -2035,17 +2035,75 @@ async function exportVideoWithMediaRecorder(format) {
         // Wait for recording to complete
         await recordingComplete;
 
-        showExportProgress('Video verwerken...', 95);
+        showExportProgress('WebM opname voltooid, converteren naar MP4...', 50);
 
-        // Create blob and download
-        const blob = new Blob(chunks, { type: mimeType });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'vrt-graphic.webm'; // WebM format for MediaRecorder
-        link.click();
+        // Create WebM blob
+        const webmBlob = new Blob(chunks, { type: mimeType });
 
-        URL.revokeObjectURL(url);
+        // Convert WebM to MP4 using FFmpeg.wasm
+        try {
+            const { FFmpeg } = FFmpegWASM;
+            const { fetchFile } = FFmpegUtil;
+
+            const ffmpeg = new FFmpeg();
+
+            ffmpeg.on('progress', ({ progress }) => {
+                const percent = 50 + (progress * 45);
+                showExportProgress(`Converteren naar MP4... ${Math.round(progress * 100)}%`, percent);
+            });
+
+            showExportProgress('FFmpeg laden...', 52);
+            await ffmpeg.load({
+                coreURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
+                wasmURL: 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm'
+            });
+
+            showExportProgress('Video converteren...', 55);
+
+            // Write WebM file to FFmpeg virtual filesystem
+            const webmData = new Uint8Array(await webmBlob.arrayBuffer());
+            await ffmpeg.writeFile('input.webm', webmData);
+
+            // Convert to MP4 with H.264 video and AAC audio
+            await ffmpeg.exec([
+                '-i', 'input.webm',
+                '-c:v', 'libx264',
+                '-preset', 'fast',
+                '-crf', '23',
+                '-c:a', 'aac',
+                '-b:a', '128k',
+                '-movflags', '+faststart',
+                'output.mp4'
+            ]);
+
+            // Read the output MP4 file
+            const mp4Data = await ffmpeg.readFile('output.mp4');
+            const mp4Blob = new Blob([mp4Data], { type: 'video/mp4' });
+
+            // Download MP4
+            const url = URL.createObjectURL(mp4Blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'vrt-graphic.mp4';
+            link.click();
+            URL.revokeObjectURL(url);
+
+            // Cleanup FFmpeg
+            await ffmpeg.deleteFile('input.webm');
+            await ffmpeg.deleteFile('output.mp4');
+
+        } catch (ffmpegError) {
+            console.error('FFmpeg conversion failed:', ffmpegError);
+            // Fall back to downloading WebM if FFmpeg fails
+            console.log('Falling back to WebM download');
+            const url = URL.createObjectURL(webmBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'vrt-graphic.webm';
+            link.click();
+            URL.revokeObjectURL(url);
+            alert('MP4 conversie mislukt. Video is geëxporteerd als WebM.\n\nFout: ' + ffmpegError.message);
+        }
 
         // Restore state
         state.currentFrame = savedFrame;
@@ -2061,9 +2119,6 @@ async function exportVideoWithMediaRecorder(format) {
         if (wasPlaying) {
             togglePlayback();
         }
-
-        // Inform user about format
-        alert('Video geëxporteerd als WebM formaat (met audio). Voor MP4 conversie, gebruik een video converter.');
 
     } catch (error) {
         console.error('MediaRecorder export failed:', error);
