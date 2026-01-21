@@ -211,6 +211,7 @@ function updateChart(options = {}) {
 
     chart.update(mode === 'none' ? 'none' : undefined);
     if (!skipLogoUpdate && elements.showLogos.checked) scheduleUpdate(updateLogoPositions);
+    if (elements.showValues.checked) updateValueLabels();
     updateBarTimingMarkers();
 }
 
