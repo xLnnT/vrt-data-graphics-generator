@@ -142,7 +142,7 @@ function initChart() {
                 },
                 y: {
                     beginAtZero: true,
-                    max: 60,
+                    max: 50,
                     border: { display: false },
                     grid: {
                         color: 'rgba(0, 0, 0, 0.15)',
@@ -153,6 +153,7 @@ function initChart() {
                         color: '#000000',
                         font: { size: 18, family: 'Roobert VRT', weight: '400' },
                         padding: 15,
+                        count: 6,
                         callback: value => value + '%'
                     }
                 }
@@ -198,7 +199,11 @@ function updateChart(options = {}) {
     chart.data.datasets[0].backgroundColor = getBarColors();
 
     const maxValue = Math.max(...getYAxisData(), 0);
-    if (chart.options.scales?.y) chart.options.scales.y.max = Math.ceil(maxValue / 10) * 10 + 10;
+    if (chart.options.scales?.y) {
+        // Calculate max that divides evenly into 5 intervals (6 ticks)
+        const niceMax = Math.ceil((maxValue * 1.1) / 5) * 5;
+        chart.options.scales.y.max = Math.max(niceMax, 10);
+    }
 
     chart.update(mode === 'none' ? 'none' : undefined);
     if (!skipLogoUpdate && elements.showLogos.checked) scheduleUpdate(updateLogoPositions);
