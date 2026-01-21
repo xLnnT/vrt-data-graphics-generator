@@ -333,13 +333,15 @@ body {
 }
 
 .checkbox {
-    width: 10px;
-    height: 10px;
-    border: 1px solid var(--text-secondary);
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--text-secondary);
+    border-radius: 50%;
     background: transparent;
     cursor: pointer;
     -webkit-appearance: none;
     appearance: none;
+    transition: background-color 0.15s ease;
 }
 
 .checkbox:checked {
