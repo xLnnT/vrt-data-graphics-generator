@@ -200,8 +200,8 @@ function updateChart(options = {}) {
 
     const maxValue = Math.max(...getYAxisData(), 1);
     if (chart.options.scales?.y) {
-        // Nice steps: 10,20,50,100... giving ticks in tens/hundreds
-        const niceSteps = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+        // Nice steps giving ticks in tens/hundreds (more granular for better fit)
+        const niceSteps = [10, 20, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400, 500, 1000, 2000, 5000, 10000];
         // Find step where data fits AND max value is in top interval (between 80-100%)
         let step = niceSteps.find(s => s * 5 >= maxValue && s * 4 < maxValue);
         // Fallback: smallest step where data fits
