@@ -524,7 +524,9 @@ async function handleTextLogoToggle(e) {
         }
     } else if (isLogosCheckbox && !checkbox.checked) {
         // Logos disabled - show text labels
+        elements.showText.checked = true;
         elements.logoOptions.style.display = 'none';
+        removeLogos();
         if (state.chart) {
             state.chart.options.scales.x.ticks.display = true;
             if (state.chart.options.layout?.padding) {
@@ -532,7 +534,6 @@ async function handleTextLogoToggle(e) {
             }
             state.chart.update();
         }
-        removeLogos();
     }
 }
 
