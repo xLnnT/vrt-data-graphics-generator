@@ -200,9 +200,12 @@ function updateChart(options = {}) {
 
     const maxValue = Math.max(...getYAxisData(), 0);
     if (chart.options.scales?.y) {
-        // Calculate max that divides evenly into 5 intervals (6 ticks)
-        const niceMax = Math.ceil((maxValue * 1.1) / 5) * 5;
-        chart.options.scales.y.max = Math.max(niceMax, 10);
+        // Calculate nice step size (10, 20, 50, 100, 200, 500...) for 6 ticks
+        const rawStep = (maxValue * 1.1) / 5;
+        const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep || 1)));
+        const residual = rawStep / magnitude;
+        const niceStep = residual <= 1 ? magnitude : residual <= 2 ? 2 * magnitude : residual <= 5 ? 5 * magnitude : 10 * magnitude;
+        chart.options.scales.y.max = Math.max(niceStep * 5, 50);
     }
 
     chart.update(mode === 'none' ? 'none' : undefined);
