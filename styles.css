@@ -805,8 +805,7 @@ body {
     font-size: 10px;
     color: var(--text-secondary);
     line-height: 1.4;
-    margin-top: auto;
-    padding-top: 16px;
+    padding-top: 8px;
 }
 
 .credits a {
@@ -852,11 +851,6 @@ body {
 
     .preview-container {
         order: -1;
-    }
-
-    .credits {
-        text-align: center;
-        margin-top: 20px;
     }
 }
 
