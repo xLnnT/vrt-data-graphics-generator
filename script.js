@@ -19,7 +19,7 @@ const state = {
     animationId: null, highlightedBars: new Set([5]), logoImages: {}, uploadedFile: null,
     logoSettings: { region: '', mono: false, labels: [] },
     easingPoints: { cp1x: 0.90, cp1y: 0.00, cp2x: 0.30, cp2y: 1.00 },
-    barTimings: [], lastGraphInTime: 1
+    barTimings: [], lastGraphInTime: 1, isUpdatingChart: false
 };
 
 let elements = null;
@@ -166,7 +166,8 @@ function initChart() {
 }
 
 function updateChart(options = {}) {
-    if (!state.chart) return;
+    if (!state.chart || state.isUpdatingChart) return;
+    state.isUpdatingChart = true;
 
     const { skipLogoUpdate = false, mode = 'default' } = options;
     const chart = state.chart;
@@ -215,6 +216,7 @@ function updateChart(options = {}) {
     if (!skipLogoUpdate && elements.showLogos.checked) scheduleUpdate(updateLogoPositions);
     if (elements.showValues.checked) { updateValueLabels(); animateChart(); }
     updateBarTimingMarkers();
+    state.isUpdatingChart = false;
 }
 
 function handleChartClick(event, clickedElements) {
@@ -2019,13 +2021,19 @@ function initEventListeners() {
     elements.titleInput.addEventListener('input', debouncedTitleUpdate);
     elements.subtitleInput.addEventListener('input', debouncedTitleUpdate);
     elements.sourceInput.addEventListener('input', debouncedTitleUpdate);
-    elements.xAxisInput.addEventListener('input', () => {
+    elements.xAxisInput.addEventListener('input', debounce(async () => {
         updateChart({ skipLogoUpdate: true });
         initializeBarTimings();
         if (elements.showLogos.checked) {
-            scheduleUpdate(() => updateXAxisDisplay());
+            await loadLogos();
+            setTimeout(() => {
+                if (state.chart) {
+                    state.chart.update();
+                    updateLogoPositions();
+                }
+            }, 50);
         }
-    });
+    }, 100));
     elements.yAxisInput.addEventListener('input', debouncedChartUpdate);
 
     elements.playBtn.addEventListener('click', togglePlayback);
