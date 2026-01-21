@@ -51,7 +51,8 @@ const state = {
     logoSettings: { region: '', mono: false, labels: [] },
     easingPoints: { cp1x: 0.90, cp1y: 0.00, cp2x: 0.30, cp2y: 1.00 },
     barTimings: [], // Array of timing values (in seconds) for each bar
-    uploadedFile: null
+    uploadedFile: null,
+    lastGraphInTime: 1 // Track previous graphIn value for delta calculations
 };
 
 // ============================================
@@ -1195,8 +1196,11 @@ const DEFAULT_STAGGER = 0.15; // Default stagger between bars
 
 function initializeBarTimings() {
     const labels = getXAxisLabels();
-    const graphInTime = parseInt(elements.graphIn.value) || 1;
+    const graphInTime = parseFloat(elements.graphIn.value) || 1;
     const barAnimationDelay = 0.5; // Initial delay after graphInTime
+
+    // Store current graphIn time for delta calculations
+    state.lastGraphInTime = graphInTime;
 
     // Create default staggered timings
     state.barTimings = labels.map((_, index) => {
@@ -1249,6 +1253,19 @@ function updateBarTimingMarkers() {
 
         elements.barTimingMarkers.appendChild(marker);
     });
+}
+
+function handleGraphInChange() {
+    const newGraphInTime = parseFloat(elements.graphIn.value) || 1;
+    const delta = newGraphInTime - state.lastGraphInTime;
+
+    if (delta !== 0 && state.barTimings.length > 0) {
+        // Shift all bar timings by the delta
+        state.barTimings = state.barTimings.map(timing => timing + delta);
+        updateBarTimingMarkers();
+    }
+
+    state.lastGraphInTime = newGraphInTime;
 }
 
 function setupMarkerDrag(marker, index) {
@@ -2419,6 +2436,9 @@ function initEventListeners() {
     elements.position.addEventListener('change', () => updateChart());
     elements.panelWidth.addEventListener('input', updatePanelWidth);
     elements.barWidth.addEventListener('input', updateBarWidth);
+
+    // Motion - shift bar timings when graphIn changes
+    elements.graphIn.addEventListener('input', handleGraphInChange);
 
     // Colors
     initColorSelectors();
