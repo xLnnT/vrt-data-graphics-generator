@@ -198,14 +198,15 @@ function updateChart(options = {}) {
     chart.data.datasets[0].data = getYAxisData();
     chart.data.datasets[0].backgroundColor = getBarColors();
 
-    const maxValue = Math.max(...getYAxisData(), 0);
+    const maxValue = Math.max(...getYAxisData(), 1);
     if (chart.options.scales?.y) {
-        // Calculate nice step size (10, 20, 50, 100, 200, 500...) for 6 ticks
-        const rawStep = (maxValue * 1.1) / 5;
-        const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep || 1)));
-        const residual = rawStep / magnitude;
-        const niceStep = residual <= 1 ? magnitude : residual <= 2 ? 2 * magnitude : residual <= 5 ? 5 * magnitude : 10 * magnitude;
-        chart.options.scales.y.max = Math.max(niceStep * 5, 50);
+        // Nice steps: 10,20,50,100... giving ticks in tens/hundreds
+        const niceSteps = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+        // Find step where data fits AND max value is in top interval (between 80-100%)
+        let step = niceSteps.find(s => s * 5 >= maxValue && s * 4 < maxValue);
+        // Fallback: smallest step where data fits
+        if (!step) step = niceSteps.find(s => s * 5 >= maxValue) || niceSteps[niceSteps.length - 1];
+        chart.options.scales.y.max = step * 5;
     }
 
     chart.update(mode === 'none' ? 'none' : undefined);
