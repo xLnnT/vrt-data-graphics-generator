@@ -95,7 +95,7 @@ body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    padding: 16px;
+    padding: 0 16px 16px 16px;
 }
 
 /* Header */
@@ -103,7 +103,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 12px 0 24px;
+    padding: 8px 0 12px;
 }
 
 .logo-container {
@@ -710,11 +710,11 @@ body {
 .timeline {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 16px;
+    gap: 12px;
+    padding: 10px 16px;
     border: 2px solid var(--border-color);
     border-radius: var(--panel-radius);
-    margin-top: 20px;
+    margin-top: 8px;
 }
 
 .play-btn {
