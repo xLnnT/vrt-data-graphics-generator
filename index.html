@@ -26,16 +26,13 @@
                     <div class="form-group">
                         <select id="chartType" class="select-input">
                             <option value="bar-vertical">Balken staand</option>
-                            <option value="bar-horizontal">Balken liggend</option>
                             <option value="line">Lijngrafiek</option>
-                            <option value="pie">Taartdiagram</option>
-                            <option value="donut">Donutdiagram</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">positie</label>
                         <select id="position" class="select-input">
-                            <option value="center">Midden (max 30 balken)</option>
+                            <option value="center">Midden</option>
                             <option value="left">Links (max 2 balken)</option>
                             <option value="right">Rechts (max 2 balken)</option>
                         </select>
@@ -43,13 +40,13 @@
                     <div class="form-group">
                         <label class="form-label">breedte kader</label>
                         <div class="slider-container">
-                            <input type="range" id="panelWidth" class="slider" min="50" max="100" value="88">
+                            <input type="range" id="panelWidth" class="slider" min="0" max="100" value="100">
                         </div>
                     </div>
                     <div class="form-group">
                         <label class="form-label">breedte balken</label>
                         <div class="slider-container">
-                            <input type="range" id="barWidth" class="slider" min="20" max="100" value="50">
+                            <input type="range" id="barWidth" class="slider" min="20" max="100" value="75">
                         </div>
                     </div>
                 </section>
@@ -61,20 +58,6 @@
                         <span class="color-label">primair</span>
                         <div class="color-selector" id="primaryColor" data-color="#5541F0">
                             <div class="color-indicator" style="background-color: #5541F0;"></div>
-                            <div class="color-dropdown">
-                                <div class="color-option" data-color="#5541F0" style="background-color: #5541F0;" title="VRT violet 4"></div>
-                                <div class="color-option" data-color="#00BEAA" style="background-color: #00BEAA;" title="VRT teal 4"></div>
-                                <div class="color-option" data-color="#7767ED" style="background-color: #7767ED;" title="Violet 3"></div>
-                                <div class="color-option" data-color="#031037" style="background-color: #031037;" title="Violet 7"></div>
-                                <div class="color-option" data-color="#EFEDFD" style="background-color: #EFEDFD;" title="Violet 1"></div>
-                                <div class="color-option" data-color="#C9C2F8" style="background-color: #C9C2F8;" title="Violet 2"></div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="color-row">
-                        <span class="color-label">secundair</span>
-                        <div class="color-selector" id="secondaryColor" data-color="#00BEAA">
-                            <div class="color-indicator" style="background-color: #00BEAA;"></div>
                             <div class="color-dropdown">
                                 <div class="color-option" data-color="#5541F0" style="background-color: #5541F0;" title="VRT violet 4"></div>
                                 <div class="color-option" data-color="#00BEAA" style="background-color: #00BEAA;" title="VRT teal 4"></div>
