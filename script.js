@@ -79,10 +79,10 @@ function updateScaleFactor() {
 }
 
 function applyScaling() {
-    const s = state.scaleFactor, c = elements.chartContainer;
+    const s = state.scaleFactor, c = elements.chartContainer, compact = isCompact();
     const scale = v => `${Math.round(v * s)}px`;
-    c.style.setProperty('--title-size', scale(70));
-    c.style.setProperty('--subtitle-size', scale(50));
+    c.style.setProperty('--title-size', scale(compact ? 60 : 70));
+    c.style.setProperty('--subtitle-size', scale(compact ? 40 : 50));
     c.style.setProperty('--source-size', scale(24));
     c.style.setProperty('--padding-v', scale(30));
     c.style.setProperty('--padding-h', scale(50));
@@ -166,7 +166,7 @@ function updateChart(options = {}) {
             chart.options.scales.y.grid.display = false;
             const panelSlider = parseFloat(elements.panelWidth.value) / 100;
             const sidePadding = 30 + panelSlider * 50;
-            chart.options.layout.padding = { left: Math.round(sidePadding * s), right: Math.round(sidePadding * s), top: Math.round(180 * s), bottom: Math.round(60 * s) };
+            chart.options.layout.padding = { left: Math.round(sidePadding * s), right: Math.round(sidePadding * s), top: Math.round(39 * s), bottom: Math.round(60 * s) };
         } else {
             chart.options.scales.y.display = true;
             chart.options.scales.y.grid.display = true;
@@ -262,6 +262,8 @@ function updateValueLabels() {
     const { scaleFactor } = state, yScale = state.chart.scales.y, data = state.chart.data.datasets[0].data;
     const labels = getXAxisLabels(), originalData = getYAxisData(), canvasOffset = elements.chartCanvas.offsetLeft;
     const compact = isCompact(), meta = state.chart.getDatasetMeta(0);
+    const panelWidth = parseFloat(elements.panelWidth.value);
+    const compactValueSize = panelWidth < 50 ? 45 : 50;
     const container = document.createElement('div');
     container.id = 'barValueLabels';
     container.style.cssText = 'position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none;z-index:15';
@@ -272,7 +274,7 @@ function updateValueLabels() {
         lbl.dataset.index = i;
         lbl.textContent = originalData[i] + '%';
         lbl.style.cssText = compact
-            ? `position:absolute;left:${barX}px;top:${barY + 50 * scaleFactor}px;transform:translate(-50%, 0);opacity:0;font-size:${50 * scaleFactor}px;font-weight:600;color:#FFFFFF;font-family:'Roobert VRT',sans-serif;text-align:center;white-space:nowrap`
+            ? `position:absolute;left:${barX}px;top:${barY + 50 * scaleFactor}px;transform:translate(-50%, 0);opacity:0;font-size:${compactValueSize * scaleFactor}px;font-weight:600;color:#FFFFFF;font-family:'Roobert VRT',sans-serif;text-align:center;white-space:nowrap`
             : `position:absolute;left:${barX}px;top:${barY - 10 * scaleFactor}px;transform:translate(-50%,-100%);opacity:0;font-size:${44 * scaleFactor}px;font-weight:600;color:#031037;font-family:'Roobert VRT',sans-serif;text-align:center;white-space:nowrap`;
         container.appendChild(lbl);
     });
@@ -357,8 +359,18 @@ function updateBarWidth() {
 function updateTitles() {
     elements.chartTitle.textContent = elements.titleInput.value || 'Titel';
     const sub = elements.subtitleInput.value.trim();
-    elements.chartSubtitle.textContent = sub; elements.chartSubtitle.style.display = sub ? 'block' : 'none';
-    elements.chartSource.textContent = elements.sourceInput.value ? 'bron: ' + elements.sourceInput.value : '';
+    const src = elements.sourceInput.value;
+    const compact = isCompact();
+    elements.chartSubtitle.textContent = sub;
+    elements.chartSource.textContent = src ? 'bron: ' + src : '';
+    elements.chartSubtitle.style.display = sub ? 'block' : 'none';
+    elements.chartSource.style.display = src ? 'block' : 'none';
+    if (compact && sub) {
+        const subtitleHeight = elements.chartSubtitle.offsetHeight;
+        elements.chartSubtitle.style.marginBottom = `-${subtitleHeight}px`;
+    } else {
+        elements.chartSubtitle.style.marginBottom = '';
+    }
 }
 
 async function handleTextLogoToggle(e) {
@@ -606,17 +618,17 @@ function animateChart() {
 
     let clipPath;
     if (time < graphIn) {
-        clipPath = 'inset(100% 0 0 0 round 12px)';
+        clipPath = 'inset(100% 0% 0% 0% round 12px)';
     } else if (time < graphIn + PANEL_ANIMATION_DURATION) {
         const p = cubicBezier((time - graphIn) / PANEL_ANIMATION_DURATION, PANEL_EASING.cp1x, PANEL_EASING.cp1y, PANEL_EASING.cp2x, PANEL_EASING.cp2y);
-        clipPath = `inset(${(1 - p) * 100}% 0 0 0 round 12px)`;
+        clipPath = `inset(${(1 - p) * 100}% 0% 0% 0% round 12px)`;
     } else if (time < graphOut) {
-        clipPath = 'inset(0 0 0 0 round 12px)';
+        clipPath = 'inset(0% 0% 0% 0% round 12px)';
     } else if (time < graphOut + PANEL_ANIMATION_DURATION) {
         const p = cubicBezier((time - graphOut) / PANEL_ANIMATION_DURATION, PANEL_EASING.cp1x, PANEL_EASING.cp1y, PANEL_EASING.cp2x, PANEL_EASING.cp2y);
-        clipPath = `inset(0 0 ${p * 100}% 0 round 12px)`;
+        clipPath = `inset(0% 0% ${p * 100}% 0% round 12px)`;
     } else {
-        clipPath = 'inset(0 0 100% 0 round 12px)';
+        clipPath = 'inset(0% 0% 100% 0% round 12px)';
     }
     elements.chartContainer.style.clipPath = clipPath;
 
@@ -712,7 +724,7 @@ async function captureFrame(withAlpha = false) {
         const pX = (containerRect.left - previewRect.left) * scaleX, pY = (containerRect.top - previewRect.top) * scaleY;
         const pW = containerRect.width * scaleX, pH = containerRect.height * scaleY;
         const clipPath = elements.chartContainer.style.clipPath || '';
-        const clipValues = clipPath.match(/inset\(([0-9.]+)%\s+[0-9.]+\s+([0-9.]+)%/);
+        const clipValues = clipPath.match(/inset\(([0-9.]+)%\s+[0-9.]+%\s+([0-9.]+)%/);
         const clipTop = clipValues ? parseFloat(clipValues[1]) : 0;
         const clipBottom = clipValues ? parseFloat(clipValues[2]) : 0;
         if (clipTop >= 100 || clipBottom >= 100) return canvas;
