@@ -712,6 +712,41 @@ function showExportProgress(msg, pct = null) {
 
 const hideExportProgress = () => document.getElementById('exportProgress')?.remove();
 
+function lockUIForExport() {
+    // Disable chart interactions
+    if (state.chart) {
+        state.chart.options.events = [];
+        state.chart.options.hover = { mode: null };
+        state.chart.update('none');
+    }
+    // Disable all inputs
+    document.querySelectorAll('input, select, button, textarea').forEach(el => {
+        el.dataset.wasDisabled = el.disabled;
+        el.disabled = true;
+    });
+    // Add overlay to prevent any clicks on preview
+    const overlay = document.createElement('div');
+    overlay.id = 'exportLockOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;cursor:not-allowed;';
+    document.body.appendChild(overlay);
+}
+
+function unlockUIAfterExport() {
+    // Restore chart interactions
+    if (state.chart) {
+        state.chart.options.events = ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove'];
+        state.chart.options.hover = { mode: 'nearest', intersect: true };
+        state.chart.update('none');
+    }
+    // Re-enable inputs
+    document.querySelectorAll('input, select, button, textarea').forEach(el => {
+        el.disabled = el.dataset.wasDisabled === 'true';
+        delete el.dataset.wasDisabled;
+    });
+    // Remove overlay
+    document.getElementById('exportLockOverlay')?.remove();
+}
+
 async function captureFrame(withAlpha = false) {
     try {
         const outW = 1920, outH = 1080, previewRect = elements.previewArea.getBoundingClientRect();
@@ -732,7 +767,22 @@ async function captureFrame(withAlpha = false) {
         const clippedY = pY + clipTopPx, clippedH = pH - clipTopPx - clipBottomPx, radius = 12 * scaleX;
         if (clippedH < 1) return canvas;
         if (bgCanvas) { ctx.save(); ctx.beginPath(); ctx.roundRect(pX, clippedY, pW, clippedH, radius); ctx.clip(); ctx.filter = 'blur(20px)'; ctx.drawImage(bgCanvas, 0, 0); ctx.filter = 'none'; ctx.restore(); }
-        const containerCanvas = await html2canvas(elements.chartContainer, { backgroundColor: null, scale: 2, useCORS: true, allowTaint: false, logging: false, onclone: (doc, el) => { el.style.clipPath = elements.chartContainer.style.clipPath; const t = doc.getElementById('chartTitle'), s = doc.getElementById('chartSubtitle'); if (t) t.style.transform = elements.chartTitle.style.transform; if (s) s.style.transform = elements.chartSubtitle.style.transform; } });
+
+        // Temporarily increase chart resolution for sharp export
+        const originalRatio = state.chart?.options?.devicePixelRatio;
+        if (state.chart) {
+            state.chart.options.devicePixelRatio = 4;
+            state.chart.resize();
+        }
+
+        const containerCanvas = await html2canvas(elements.chartContainer, { backgroundColor: null, scale: 4, useCORS: true, allowTaint: false, logging: false, onclone: (doc, el) => { el.style.clipPath = elements.chartContainer.style.clipPath; const t = doc.getElementById('chartTitle'), s = doc.getElementById('chartSubtitle'); if (t) t.style.transform = elements.chartTitle.style.transform; if (s) s.style.transform = elements.chartSubtitle.style.transform; } });
+
+        // Restore original chart resolution
+        if (state.chart) {
+            state.chart.options.devicePixelRatio = originalRatio || window.devicePixelRatio || 1;
+            state.chart.resize();
+        }
+
         ctx.save(); ctx.beginPath(); ctx.roundRect(pX, clippedY, pW, clippedH, radius); ctx.clip(); ctx.drawImage(containerCanvas, pX, pY, pW, pH); ctx.restore();
         return canvas;
     } catch (e) {
@@ -748,11 +798,12 @@ async function exportVideo(format) {
     if (typeof VideoEncoder === 'undefined') { alert('Je browser ondersteunt geen video encoding. Gebruik Chrome of Edge.'); return; }
     if (format === 'mov-alpha') { alert('MOV + alpha export is niet beschikbaar in de browser.'); return; }
     isExporting = true; showExportProgress('Video voorbereiden...', 0);
+    lockUIForExport();
     try {
         const fps = 25, vW = 1920, vH = 1080;
         const startT = parseFloat(elements.exportStart.value) || 0, endT = parseFloat(elements.exportEnd.value) || state.totalDuration;
         const dur = Math.max(0, endT - startT), totalFrames = Math.floor(fps * dur);
-        if (totalFrames <= 0) { alert('Ongeldige export range.'); isExporting = false; hideExportProgress(); return; }
+        if (totalFrames <= 0) { alert('Ongeldige export range.'); isExporting = false; hideExportProgress(); unlockUIAfterExport(); return; }
         const savedFrame = state.currentFrame, wasPlaying = state.isPlaying;
         if (wasPlaying) togglePlayback();
         const includeAudio = format === 'mp4-audio', bgVideo = elements.previewBackground.querySelector('video');
@@ -817,8 +868,9 @@ async function exportVideo(format) {
         state.currentFrame = savedFrame; updateTimelineDisplay(); animateChart();
         if (bgVideo) bgVideo.currentTime = (savedFrame / getTotalFrames()) * state.totalDuration;
         hideExportProgress();
+        unlockUIAfterExport();
         if (wasPlaying) togglePlayback();
-    } catch (e) { alert(`Export mislukt: ${e.message}`); hideExportProgress(); }
+    } catch (e) { alert(`Export mislukt: ${e.message}`); hideExportProgress(); unlockUIAfterExport(); }
     isExporting = false;
 }
 
@@ -889,8 +941,7 @@ async function captureBackground() {
 }
 
 async function handleExport(format) {
-    if (format === 'mp4-audio') { await exportVideoWithMediaRecorder(format); return; }
-    if (['mp4-noaudio', 'mov-alpha'].includes(format)) { await exportVideo(format); return; }
+    if (['mp4-audio', 'mp4-noaudio', 'mov-alpha'].includes(format)) { await exportVideo(format); return; }
     try {
         const canvas = await captureFrame(format === 'png'), link = document.createElement('a');
         link.download = `vrt-graphic.${format}`; link.href = canvas.toDataURL(format === 'jpg' ? 'image/jpeg' : 'image/png', 0.95); link.click();
