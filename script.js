@@ -51,7 +51,7 @@ function cacheElements() {
         chartSubtitle: $('chartSubtitle'), chartSource: $('chartSource'),
         chartContainer: null, chartWrapper: null,
         titleInput: $('titleInput'), subtitleInput: $('subtitleInput'),
-        sourceInput: $('sourceInput'), xAxisInput: $('xAxisInput'), yAxisInput: $('yAxisInput'),
+        sourceInput: $('sourceInput'), xAxisInput: $('xAxisInput'), yAxisInput: $('yAxisInput'), suffixInput: $('suffixInput'),
         importArea: $('importArea'), dataFileInput: $('dataFileInput'),
         importFileDisplay: $('importFileDisplay'), importFileName: $('importFileName'), importFileDelete: $('importFileDelete'),
         uploadFileDisplay: $('uploadFileDisplay'), uploadFileName: $('uploadFileName'), uploadFileDelete: $('uploadFileDelete'),
@@ -71,6 +71,17 @@ const getXAxisLabels = () => elements.xAxisInput.value.split(',').map(s => s.tri
 const getYAxisData = () => elements.yAxisInput.value.split(',').map(s => parseFloat(s.trim()) || 0).slice(0, getMaxBars());
 const getBarColors = () => { const p = elements.primaryColor.dataset.color, h = elements.highlightColor.dataset.color; return getXAxisLabels().map((_, i) => state.highlightedBars.has(i) ? h : p); };
 const isCompact = () => elements.position.value === 'left' || elements.position.value === 'right';
+function calcNiceYScale(maxValue) {
+    if (maxValue <= 0) return { max: 50, step: 10 };
+    const rawStep = maxValue / 6;
+    const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+    const norm = rawStep / mag;
+    let step = norm <= 1 ? mag : norm <= 2 ? 2 * mag : norm <= 5 ? 5 * mag : 10 * mag;
+    let max = Math.ceil(maxValue / step) * step;
+    if (max <= maxValue) max += step;
+    return { max, step };
+}
+const formatNumber = v => { const s = String(v); return Math.abs(v) >= 1000 ? s.replace(/\B(?=(\d{3})+(?!\d))/g, '.') : s; };
 const getTotalFrames = () => Math.floor(state.totalDuration * 60);
 
 function updateScaleFactor() {
@@ -120,7 +131,7 @@ function initChart() {
             },
             scales: {
                 x: { grid: { display: false }, border: { display: false }, ticks: { color: '#000000', font: { size: 18, family: 'Roobert VRT', weight: '400' }, padding: 15, maxRotation: 0, minRotation: 0 } },
-                y: { beginAtZero: true, max: 50, border: { display: false }, grid: { color: 'rgba(0, 0, 0, 0.15)', lineWidth: 1, drawTicks: false }, ticks: { color: '#000000', font: { size: 18, family: 'Roobert VRT', weight: '400' }, padding: 15, count: 6, callback: v => v + '%' } }
+                y: (() => { const { max, step } = calcNiceYScale(Math.max(...getYAxisData(), 1)); return { beginAtZero: true, max, border: { display: false }, grid: { color: '#6E6E74', lineWidth: 1, drawTicks: false }, ticks: { color: '#6E6E74', font: { size: 18, family: 'Roobert VRT', weight: '400' }, padding: 15, stepSize: step, callback: v => formatNumber(v) + (elements?.suffixInput?.value ?? '%') } }; })()
             },
             onClick: handleChartClick
         }
@@ -156,9 +167,9 @@ function updateChart(options = {}) {
 
     const maxValue = Math.max(...getYAxisData(), 1);
     if (chart.options.scales?.y) {
-        const niceSteps = [10, 20, 30, 40, 50, 60, 80, 100, 150, 200, 300, 400, 500, 1000, 2000, 5000, 10000];
-        let step = niceSteps.find(s => s * 5 >= maxValue && s * 4 < maxValue) || niceSteps.find(s => s * 5 >= maxValue) || niceSteps[niceSteps.length - 1];
-        chart.options.scales.y.max = step * 5;
+        const { max: yMax, step: yStep } = calcNiceYScale(maxValue);
+        chart.options.scales.y.max = yMax;
+        chart.options.scales.y.ticks.stepSize = yStep;
         const s = state.scaleFactor;
 
         if (compact) {
@@ -272,7 +283,7 @@ function updateValueLabels() {
         const lbl = document.createElement('div');
         lbl.className = 'bar-value-label';
         lbl.dataset.index = i;
-        lbl.textContent = originalData[i] + '%';
+        lbl.textContent = formatNumber(originalData[i]) + (elements?.suffixInput?.value ?? '%');
         lbl.style.cssText = compact
             ? `position:absolute;left:${barX}px;top:${barY + 50 * scaleFactor}px;transform:translate(-50%, 0);opacity:0;font-size:${compactValueSize * scaleFactor}px;font-weight:600;color:#FFFFFF;font-family:'Roobert VRT',sans-serif;text-align:center;white-space:nowrap`
             : `position:absolute;left:${barX}px;top:${barY - 10 * scaleFactor}px;transform:translate(-50%,-100%);opacity:0;font-size:${44 * scaleFactor}px;font-weight:600;color:#031037;font-family:'Roobert VRT',sans-serif;text-align:center;white-space:nowrap`;
@@ -1013,6 +1024,7 @@ function initEventListeners() {
     elements.sourceInput.addEventListener('input', debouncedTitle);
     elements.xAxisInput.addEventListener('input', debounce(async () => { updateChart({ skipLogoUpdate: true }); initializeBarTimings(); if (elements.showLogos.checked) { await loadLogos(); setTimeout(() => { state.chart?.update(); updateLogoPositions(); }, 50); } }, 100));
     elements.yAxisInput.addEventListener('input', debouncedChart);
+    elements.suffixInput.addEventListener('input', debouncedChart);
     elements.playBtn.addEventListener('click', togglePlayback);
     const track = elements.timelineProgress.parentElement;
     let dragging = false;
